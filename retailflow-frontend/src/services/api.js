@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '../store/authStore.js'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL + '/api' : '/api',
   withCredentials: true,
 })
 
