@@ -4,30 +4,34 @@ import { useAuthStore } from '../../store/authStore.js'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
-  Settings, ChevronLeft, ChevronRight, AlertTriangle, Globe, CreditCard
+  Settings, ChevronLeft, ChevronRight, Globe, CreditCard
 } from 'lucide-react'
 
 const NAV = [
-  { to:'/',          icon: LayoutDashboard, label:'Dashboard'   },
+  { to:'/',          icon: LayoutDashboard, label:'Dashboard'    },
   { to:'/pos',       icon: ShoppingCart,    label:'POS / Billing', highlight: true },
-  { to:'/products',  icon: Package,         label:'Products'    },
-  { to:'/customers', icon: Users,           label:'Customers'   },
-  { to:'/udhaar',    icon: CreditCard,      label:'Udhaar'      },
-  { to:'/sales',     icon: Receipt,         label:'Sales'       },
-  { to:'/purchases', icon: ShoppingBag,     label:'Purchases'   },
-  { to:'/suppliers', icon: Truck,           label:'Suppliers'   },
-  { to:'/staff',     icon: UserCheck,       label:'Staff'       },
-  { to:'/expenses',  icon: Wallet,          label:'Expenses'    },
+  { to:'/products',  icon: Package,         label:'Products'     },
+  { to:'/customers', icon: Users,           label:'Customers'    },
+  { to:'/udhaar',    icon: CreditCard,      label:'Udhaar'       },
+  { to:'/sales',     icon: Receipt,         label:'Sales'        },
+  { to:'/purchases', icon: ShoppingBag,     label:'Purchases'    },
+  { to:'/suppliers', icon: Truck,           label:'Suppliers'    },
+  { to:'/staff',     icon: UserCheck,       label:'Staff'        },
+  { to:'/expenses',  icon: Wallet,          label:'Expenses'     },
   { to:'/orders',    icon: Globe,           label:'Online Orders'},
-  { to:'/analytics', icon: BarChart3,       label:'Analytics'   },
-  { to:'/settings',  icon: Settings,        label:'Settings'    },
+  { to:'/analytics', icon: BarChart3,       label:'Analytics'    },
+  { to:'/settings',  icon: Settings,        label:'Settings'     },
 ]
 
 export default function Sidebar() {
-  const open       = useUIStore(s => s.sidebarOpen)
-  const toggle     = useUIStore(s => s.toggleSidebar)
-  const shopName   = useAuthStore(s => s.getShopName())
-  const location   = useLocation()
+  const open     = useUIStore(s => s.sidebarOpen)
+  const toggle   = useUIStore(s => s.toggleSidebar)
+  const location = useLocation()
+
+  // Get shop name from settings (updated on save) or fallback to user branding
+  const settings  = useAuthStore(s => s.settings)
+  const user      = useAuthStore(s => s.user)
+  const shopName  = settings?.shop?.name || user?.branding?.shopName || 'RetailFlow'
 
   return (
     <aside className={`fixed left-0 top-0 h-full bg-white border-r border-slate-100 shadow-sm z-30 transition-all duration-200 flex flex-col ${open ? 'w-64' : 'w-16'}`}>

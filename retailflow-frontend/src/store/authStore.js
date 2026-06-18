@@ -29,6 +29,14 @@ export const useAuthStore = create(
 
       setSettings: (settings) => set({ settings }),
 
+      // Load settings after login
+      loadSettings: async () => {
+        try {
+          const { data } = await api.get('/settings')
+          set({ settings: data.data })
+        } catch {}
+      },
+
       getShopName: () => {
         const { user, settings } = get()
         return settings?.shop?.name || user?.branding?.shopName || 'RetailFlow'
@@ -36,7 +44,7 @@ export const useAuthStore = create(
     }),
     {
       name: 'retailflow-auth',
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken }),
+      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, settings: s.settings }),
     }
   )
 )
