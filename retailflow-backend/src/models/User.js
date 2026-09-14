@@ -24,6 +24,10 @@ const UserSchema = new mongoose.Schema({
     phone:       String,
     email:       String,
   },
+  // Password reset
+  resetToken:   { type: String, select: false },
+  resetExpires: { type: Date,   select: false },
+
   isActive:  { type: Boolean, default: true },
   lastLogin: Date,
 }, { timestamps: true })

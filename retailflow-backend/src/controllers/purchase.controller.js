@@ -12,12 +12,27 @@ export const getPurchases = asyncHandler(async (req, res) => {
   const filter = { ownerId: req.user._id }
   if (supplierId) filter.supplierId = supplierId
   if (status)     filter.status     = status
+
   const skip = (parseInt(page)-1) * parseInt(limit)
   const [purchases, total] = await Promise.all([
-    Purchase.find(filter).populate('supplierId','name phone').sort({createdAt:-1}).skip(skip).limit(parseInt(limit)),
+    Purchase.find(filter)
+      .populate('supplierId','name phone')
+      .sort({ createdAt: -1 })
+      .skip(skip).limit(parseInt(limit))
+      .lean(),
     Purchase.countDocuments(filter)
   ])
-  res.json(new ApiResponse(200, { purchases, pagination:{total, page:parseInt(page), pages:Math.ceil(total/limit)} }))
+  res.json(new ApiResponse(200, {
+    purchases,
+    pagination: { total, page: parseInt(page), pages: Math.ceil(total/limit) }
+  }))
+})
+
+export const getPurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.user._id })
+    .populate('supplierId','name phone email')
+  if (!purchase) throw new ApiError(404, 'Purchase not found')
+  res.json(new ApiResponse(200, purchase))
 })
 
 export const createPurchase = asyncHandler(async (req, res) => {
@@ -26,44 +41,66 @@ export const createPurchase = asyncHandler(async (req, res) => {
   res.status(201).json(new ApiResponse(201, purchase, 'Purchase order created'))
 })
 
+export const updatePurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findOneAndUpdate(
+    { _id: req.params.id, ownerId: req.user._id, status: { $in: ['draft','sent'] } },
+    req.body,
+    { new: true }
+  )
+  if (!purchase) throw new ApiError(404, 'Purchase not found or already received')
+  res.json(new ApiResponse(200, purchase, 'Purchase updated'))
+})
+
 export const receivePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.user._id })
   if (!purchase) throw new ApiError(404, 'Purchase not found')
   if (purchase.status === 'received') throw new ApiError(400, 'Already received')
 
-  for (const item of purchase.items) {
-    // Update product stock and price
-    await Product.findByIdAndUpdate(item.productId, {
-      $inc: { stock: item.quantity },
-      $set: {
-        purchasePrice: item.purchasePrice,
-        ...(item.mrp && { mrp: item.mrp }),
-        ...(item.sellingPrice && { sellingPrice: item.sellingPrice })
+  // Bulk update all products at once
+  const bulkOps = purchase.items.map(item => ({
+    updateOne: {
+      filter: { _id: item.productId },
+      update: {
+        $inc: { stock: item.quantity },
+        $set: {
+          purchasePrice: item.purchasePrice,
+          ...(item.mrp          && { mrp:          item.mrp }),
+          ...(item.sellingPrice && { sellingPrice: item.sellingPrice }),
+        }
       }
-    })
-    // Create batch for pharmacy
-    if (item.batchNumber && item.expiryDate) {
-      await ProductBatch.create({
-        productId:     item.productId,
-        ownerId:       req.user._id,
-        supplierId:    purchase.supplierId,
-        batchNumber:   item.batchNumber,
-        expiryDate:    item.expiryDate,
-        quantity:      item.quantity,
-        purchasePrice: item.purchasePrice,
-        mrp:           item.mrp,
-      })
     }
-  }
+  }))
+  await Product.bulkWrite(bulkOps)
+
+  // Create batches for pharmacy products
+  const batchDocs = purchase.items
+    .filter(item => item.batchNumber && item.expiryDate)
+    .map(item => ({
+      productId:     item.productId,
+      ownerId:       req.user._id,
+      supplierId:    purchase.supplierId,
+      batchNumber:   item.batchNumber,
+      expiryDate:    item.expiryDate,
+      quantity:      item.quantity,
+      remainingQty:  item.quantity,
+      purchasePrice: item.purchasePrice,
+      mrp:           item.mrp,
+    }))
+  if (batchDocs.length) await ProductBatch.insertMany(batchDocs)
 
   purchase.status     = 'received'
   purchase.receivedAt = new Date()
   purchase.receivedBy = req.user._id
+  await purchase.save()
+
   if (purchase.supplierId) {
     await Supplier.findByIdAndUpdate(purchase.supplierId, {
-      $inc: { totalPurchased: purchase.totalAmount, outstandingBalance: purchase.dueAmount }
+      $inc: {
+        totalPurchased:     purchase.totalAmount,
+        outstandingBalance: purchase.dueAmount,
+      }
     })
   }
-  await purchase.save()
+
   res.json(new ApiResponse(200, purchase, 'Stock received'))
 })
