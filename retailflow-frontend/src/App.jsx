@@ -11,6 +11,7 @@ import Dashboard     from './pages/Dashboard.jsx'
 import POS           from './pages/pos/POS.jsx'
 import Products      from './pages/products/Products.jsx'
 import AddProduct    from './pages/products/AddProduct.jsx'
+import EditProduct   from './pages/products/EditProduct.jsx'
 import Customers     from './pages/customers/Customers.jsx'
 import CustomerDetail from './pages/customers/CustomerDetail.jsx'
 import UdhaarMgmt    from './pages/customers/UdhaarManagement.jsx'
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="pos"         element={<POS />} />
         <Route path="products"    element={<Products />} />
         <Route path="products/add"       element={<AddProduct />} />
+        <Route path="products/:id/edit"  element={<EditProduct />} />
         <Route path="products/low-stock" element={<LowStock />} />
         <Route path="products/expiring"  element={<ExpiryAlerts />} />
         <Route path="customers"          element={<Customers />} />
