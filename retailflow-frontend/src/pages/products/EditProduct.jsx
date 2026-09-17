@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchProduct, updateProduct } from '../../services/product.service.js'
 import { fetchCategories } from '../../services/category.service.js'
 import { PageLoader } from '../../components/common/Loader.jsx'
+import ImageUpload from '../../components/products/ImageUpload.jsx'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Save } from 'lucide-react'
 
@@ -29,11 +30,13 @@ export default function EditProduct() {
   const categories = catData?.data?.data || []
 
   const { register, handleSubmit, reset, formState:{ isSubmitting, errors } } = useForm()
+  const [imageUrl, setImageUrl] = useState(null)
 
   // Product loads async (separate request from the form mount), so seed the
   // form once it arrives instead of relying on useForm's one-time defaultValues.
   useEffect(() => {
     if (!product) return
+    setImageUrl(product.images?.[0] || null)
     reset({
       name:          product.name || '',
       brand:         product.brand || '',
@@ -56,6 +59,7 @@ export default function EditProduct() {
     try {
       await updateProduct(id, {
         ...data,
+        images:        imageUrl ? [imageUrl] : [],
         category:      data.category || null,
         mrp:           parseFloat(data.mrp)||0,
         sellingPrice:  parseFloat(data.sellingPrice),
@@ -119,6 +123,7 @@ export default function EditProduct() {
         {/* Basic Info */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-slate-700">Basic Information</h2>
+          <ImageUpload value={imageUrl} onChange={setImageUrl}/>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Product Name" name="name" required placeholder="e.g. Basmati Rice 5kg"/>
             <Field label="Brand" name="brand" placeholder="e.g. India Gate"/>

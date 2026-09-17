@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
-import { createProduct } from '../../services/product.service.js'
+import { createProduct, updateProduct } from '../../services/product.service.js'
 import { useQueryClient } from '@tanstack/react-query'
+import ImageUpload from '../../components/products/ImageUpload.jsx'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Save } from 'lucide-react'
 
@@ -11,13 +13,17 @@ const GST_SLABS= [0,5,12,18,28]
 export default function AddProduct() {
   const navigate = useNavigate()
   const qc       = useQueryClient()
+  const [imageUrl, setImageUrl] = useState(null)
   const { register, handleSubmit, formState:{ isSubmitting, errors } } = useForm({
     defaultValues: { unit:'piece', gstPercent:0, stock:0, minStock:5, mrp:0 }
   })
 
   const onSubmit = async (data) => {
     try {
-      await createProduct({
+      // images isn't in createProductSchema (Joi strips unknown fields on
+      // POST), so create first, then attach the uploaded URL with a PUT —
+      // that route has no such stripping.
+      const res = await createProduct({
         ...data,
         mrp:           parseFloat(data.mrp)||0,
         sellingPrice:  parseFloat(data.sellingPrice),
@@ -26,6 +32,10 @@ export default function AddProduct() {
         minStock:      parseInt(data.minStock)||5,
         gstPercent:    parseFloat(data.gstPercent)||0,
       })
+      const newId = res?.data?.data?._id
+      if (imageUrl && newId) {
+        await updateProduct(newId, { images: [imageUrl] })
+      }
       toast.success('Product added!')
       qc.invalidateQueries(['products'])
       navigate('/products')
@@ -58,6 +68,7 @@ export default function AddProduct() {
         {/* Basic Info */}
         <div className="card p-6 space-y-4">
           <h2 className="font-semibold text-slate-700">Basic Information</h2>
+          <ImageUpload value={imageUrl} onChange={setImageUrl}/>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Product Name" name="name" required placeholder="e.g. Basmati Rice 5kg"/>
             <Field label="Brand" name="brand" placeholder="e.g. India Gate"/>
