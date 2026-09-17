@@ -2,14 +2,108 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchProducts, deleteProduct } from '../../services/product.service.js'
+import { fetchCategories, createCategory, updateCategory, deleteCategory } from '../../services/category.service.js'
 import { formatINR } from '../../utils/formatCurrency.js'
 import { PageLoader } from '../../components/common/Loader.jsx'
-import { Plus, Search, AlertTriangle, Edit, Trash2, Package } from 'lucide-react'
+import Modal from '../../components/common/Modal.jsx'
+import { Plus, Search, AlertTriangle, Edit, Trash2, Package, Tag, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+function CategoryManager({ open, onClose }) {
+  const qc = useQueryClient()
+  const [newName, setNewName]     = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editName, setEditName]   = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['categories'],
+    queryFn:  fetchCategories,
+    enabled:  open,
+  })
+  const categories = data?.data?.data || []
+
+  const createMut = useMutation({
+    mutationFn: (name) => createCategory({ name }),
+    onSuccess: () => { toast.success('Category added'); setNewName(''); qc.invalidateQueries(['categories']) },
+    onError:   (e)  => toast.error(e.response?.data?.message || 'Failed to add category')
+  })
+  const updateMut = useMutation({
+    mutationFn: ({ id, name }) => updateCategory(id, { name }),
+    onSuccess: () => {
+      toast.success('Category updated'); setEditingId(null)
+      qc.invalidateQueries(['categories']); qc.invalidateQueries(['products'])
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Failed to update category')
+  })
+  const deleteMut = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => {
+      toast.success('Category deleted')
+      qc.invalidateQueries(['categories']); qc.invalidateQueries(['products'])
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Failed to delete category')
+  })
+
+  const submitNew = (e) => {
+    e.preventDefault()
+    if (newName.trim()) createMut.mutate(newName.trim())
+  }
+  const saveEdit = () => {
+    if (editName.trim()) updateMut.mutate({ id: editingId, name: editName.trim() })
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Manage Categories" size="sm">
+      <div className="p-6 space-y-4">
+        <form onSubmit={submitNew} className="flex gap-2">
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            placeholder="New category name" className="input text-sm flex-1"/>
+          <button type="submit" disabled={!newName.trim() || createMut.isPending} className="btn-primary text-sm px-3">
+            <Plus size={14}/>
+          </button>
+        </form>
+
+        <div className="max-h-72 overflow-y-auto space-y-1">
+          {isLoading && <p className="text-sm text-slate-400 text-center py-4">Loading...</p>}
+          {!isLoading && categories.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-4">No categories yet — add one above.</p>
+          )}
+          {categories.map(c => (
+            <div key={c._id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-slate-50">
+              {editingId === c._id ? (
+                <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
+                  className="input text-sm flex-1 py-1"/>
+              ) : (
+                <span className="text-sm text-slate-700">{c.name}</span>
+              )}
+              <div className="flex gap-1 flex-shrink-0">
+                {editingId === c._id ? (
+                  <>
+                    <button onClick={saveEdit} className="btn-ghost p-1.5 text-green-600 hover:text-green-700"><Check size={14}/></button>
+                    <button onClick={() => setEditingId(null)} className="btn-ghost p-1.5 text-slate-400"><X size={14}/></button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setEditingId(c._id); setEditName(c.name) }}
+                      className="btn-ghost p-1.5 text-slate-400 hover:text-brand-600"><Edit size={14}/></button>
+                    <button onClick={() => deleteMut.mutate(c._id)}
+                      className="btn-ghost p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  )
+}
 
 export default function Products() {
   const [search, setSearch] = useState('')
   const [page, setPage]     = useState(1)
+  const [catOpen, setCatOpen] = useState(false)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -35,6 +129,9 @@ export default function Products() {
           <Link to="/products/low-stock" className="btn-secondary text-sm">
             <AlertTriangle size={14} className="text-yellow-500"/> Low Stock
           </Link>
+          <button onClick={() => setCatOpen(true)} className="btn-secondary text-sm">
+            <Tag size={14}/> Categories
+          </button>
           <Link to="/products/add" className="btn-primary text-sm">
             <Plus size={14}/> Add Product
           </Link>
@@ -118,6 +215,8 @@ export default function Products() {
           </div>
         )}
       </div>
+
+      <CategoryManager open={catOpen} onClose={() => setCatOpen(false)}/>
     </div>
   )
 }
