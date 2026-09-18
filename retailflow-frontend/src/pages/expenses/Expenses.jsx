@@ -12,10 +12,11 @@ const CATS = ['rent','salary','electricity','maintenance','transport','marketing
 
 export default function Expenses() {
   const [showAdd, setShowAdd] = useState(false)
+  const [page, setPage] = useState(1)
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
-    queryKey:['expenses'],
-    queryFn: ()=>api.get('/expenses'),
+    queryKey:['expenses', page],
+    queryFn: ()=>api.get('/expenses', { params: { page, limit: 20 } }),
   })
   const { register, handleSubmit, reset, formState:{isSubmitting} } = useForm()
   const addMutation = useMutation({
@@ -25,8 +26,9 @@ export default function Expenses() {
   })
 
   if (isLoading) return <PageLoader/>
-  const expenses = data?.data?.data || []
-  const total    = expenses.reduce((s,e)=>s+e.amount,0)
+  const expenses   = data?.data?.data?.expenses || []
+  const pagination = data?.data?.data?.pagination || {}
+  const total      = data?.data?.data?.totalAmount || 0
 
   return (
     <div className="space-y-5">
@@ -60,6 +62,15 @@ export default function Expenses() {
           <div className="text-center py-16 text-slate-400">
             <Wallet size={40} className="mx-auto mb-3 opacity-30"/>
             <p>No expenses recorded</p>
+          </div>
+        )}
+        {pagination.pages > 1 && (
+          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm">
+            <span className="text-slate-500">Showing {expenses.length} of {pagination.total}</span>
+            <div className="flex gap-2">
+              <button disabled={page===1} onClick={()=>setPage(p=>p-1)} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40">Prev</button>
+              <button disabled={page===pagination.pages} onClick={()=>setPage(p=>p+1)} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40">Next</button>
+            </div>
           </div>
         )}
       </div>

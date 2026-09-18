@@ -10,10 +10,11 @@ import toast from 'react-hot-toast'
 
 export default function Suppliers() {
   const [showAdd, setShowAdd] = useState(false)
+  const [page, setPage] = useState(1)
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
-    queryKey:['suppliers'],
-    queryFn: ()=>api.get('/suppliers'),
+    queryKey:['suppliers', page],
+    queryFn: ()=>api.get('/suppliers', { params: { page, limit: 20 } }),
   })
   const { register, handleSubmit, reset, formState:{isSubmitting} } = useForm()
   const addMutation = useMutation({
@@ -23,7 +24,8 @@ export default function Suppliers() {
   })
 
   if (isLoading) return <PageLoader/>
-  const suppliers = data?.data?.data || []
+  const suppliers  = data?.data?.data?.suppliers || []
+  const pagination = data?.data?.data?.pagination || {}
 
   return (
     <div className="space-y-5">
@@ -56,6 +58,15 @@ export default function Suppliers() {
           <div className="text-center py-16 text-slate-400">
             <Truck size={40} className="mx-auto mb-3 opacity-30"/>
             <p>No suppliers yet</p>
+          </div>
+        )}
+        {pagination.pages > 1 && (
+          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm">
+            <span className="text-slate-500">Showing {suppliers.length} of {pagination.total}</span>
+            <div className="flex gap-2">
+              <button disabled={page===1} onClick={()=>setPage(p=>p-1)} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40">Prev</button>
+              <button disabled={page===pagination.pages} onClick={()=>setPage(p=>p+1)} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40">Next</button>
+            </div>
           </div>
         )}
       </div>

@@ -4,9 +4,21 @@ import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const getAll = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20 } = req.query
   const filter = { ownerId: req.user._id }
-  const items  = await Expense.find(filter).sort({ createdAt: -1}).lean()
-  res.json(new ApiResponse(200, items))
+  const skip   = (parseInt(page) - 1) * parseInt(limit)
+
+  const [expenses, total, totalAmountAgg] = await Promise.all([
+    Expense.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+    Expense.countDocuments(filter),
+    Expense.aggregate([{ $match: filter }, { $group: { _id: null, sum: { $sum: '$amount' } } }])
+  ])
+
+  res.json(new ApiResponse(200, {
+    expenses,
+    totalAmount: totalAmountAgg[0]?.sum || 0,
+    pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / limit) }
+  }))
 })
 
 export const getOne = asyncHandler(async (req, res) => {

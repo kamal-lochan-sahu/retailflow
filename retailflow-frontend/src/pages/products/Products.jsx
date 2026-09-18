@@ -3,11 +3,48 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchProducts, deleteProduct } from '../../services/product.service.js'
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '../../services/category.service.js'
+import { generateBarcodeLabelsPDF } from '../../utils/generateBarcodeLabels.js'
 import { formatINR } from '../../utils/formatCurrency.js'
 import { PageLoader } from '../../components/common/Loader.jsx'
 import Modal from '../../components/common/Modal.jsx'
-import { Plus, Search, AlertTriangle, Edit, Trash2, Package, Tag, Check, X } from 'lucide-react'
+import { Plus, Search, AlertTriangle, Edit, Trash2, Package, Tag, Check, X, Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+function PrintLabelModal({ product, onClose }) {
+  const [qty, setQty] = useState(1)
+
+  const handlePrint = () => {
+    const ok = generateBarcodeLabelsPDF([{
+      name: product.name, barcode: product.barcode, sellingPrice: product.sellingPrice, qty
+    }])
+    if (!ok) { toast.error('This product has no barcode set'); return }
+    onClose()
+  }
+
+  return (
+    <Modal open={!!product} onClose={onClose} title="Print Barcode Labels" size="sm">
+      {product && (
+        <div className="p-6 space-y-4">
+          <div className="bg-slate-50 rounded-lg p-3">
+            <p className="font-medium text-slate-800">{product.name}</p>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">{product.barcode}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Number of labels</label>
+            <input type="number" min="1" value={qty}
+              onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+              className="input text-sm"/>
+            <p className="text-xs text-slate-400 mt-1">One label per physical unit is typical.</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button onClick={handlePrint} className="btn-primary flex-1"><Printer size={14}/> Generate PDF</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
 
 function CategoryManager({ open, onClose }) {
   const qc = useQueryClient()
@@ -104,6 +141,7 @@ export default function Products() {
   const [search, setSearch] = useState('')
   const [page, setPage]     = useState(1)
   const [catOpen, setCatOpen] = useState(false)
+  const [printProduct, setPrintProduct] = useState(null)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -186,6 +224,9 @@ export default function Products() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
+                        {p.barcode && (
+                          <button onClick={() => setPrintProduct(p)} className="btn-ghost p-1.5 text-slate-400 hover:text-brand-600"><Printer size={14}/></button>
+                        )}
                         <Link to={`/products/${p._id}/edit`} className="btn-ghost p-1.5 text-slate-400 hover:text-brand-600"><Edit size={14}/></Link>
                         <button onClick={() => del.mutate(p._id)} className="btn-ghost p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
                       </div>
@@ -217,6 +258,7 @@ export default function Products() {
       </div>
 
       <CategoryManager open={catOpen} onClose={() => setCatOpen(false)}/>
+      <PrintLabelModal product={printProduct} onClose={() => setPrintProduct(null)}/>
     </div>
   )
 }
