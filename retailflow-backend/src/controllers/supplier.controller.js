@@ -5,7 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const getAll = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20 } = req.query
-  const filter = { ownerId: req.user._id }
+  const filter = { ownerId: req.scopeOwnerId }
   const skip   = (parseInt(page) - 1) * parseInt(limit)
 
   const [suppliers, total] = await Promise.all([
@@ -20,19 +20,19 @@ export const getAll = asyncHandler(async (req, res) => {
 })
 
 export const getOne = asyncHandler(async (req, res) => {
-  const item = await Supplier.findOne({ _id: req.params.id, ownerId: req.user._id})
+  const item = await Supplier.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId})
   if (!item) throw new ApiError(404, 'Supplier not found')
   res.json(new ApiResponse(200, item))
 })
 
 export const create = asyncHandler(async (req, res) => {
-  const item = await Supplier.create({ ...req.body, ownerId: req.user._id})
+  const item = await Supplier.create({ ...req.body, ownerId: req.scopeOwnerId})
   res.status(201).json(new ApiResponse(201, item, 'Supplier created'))
 })
 
 export const update = asyncHandler(async (req, res) => {
   const item = await Supplier.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.user._id},
+    { _id: req.params.id, ownerId: req.scopeOwnerId},
     req.body, { new: true}
   )
   if (!item) throw new ApiError(404, 'Supplier not found')
@@ -40,7 +40,7 @@ export const update = asyncHandler(async (req, res) => {
 })
 
 export const remove = asyncHandler(async (req, res) => {
-  const item = await Supplier.findOneAndDelete({ _id: req.params.id, ownerId: req.user._id})
+  const item = await Supplier.findOneAndDelete({ _id: req.params.id, ownerId: req.scopeOwnerId})
   if (!item) throw new ApiError(404, 'Supplier not found')
   res.json(new ApiResponse(200, {}, 'Supplier deleted'))
 })

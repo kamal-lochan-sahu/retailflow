@@ -6,7 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const paySalary = asyncHandler(async (req, res) => {
   const { staffId, month, year, basicSalary, commission=0, advance=0, deductions=0, bonus=0, paymentMode, note } = req.body
-  const staff = await Staff.findOne({ _id: staffId, ownerId: req.user._id })
+  const staff = await Staff.findOne({ _id: staffId, ownerId: req.scopeOwnerId })
   if (!staff) throw new ApiError(404, 'Staff not found')
 
   const existing = await Salary.findOne({ staffId, month, year })
@@ -15,7 +15,7 @@ export const paySalary = asyncHandler(async (req, res) => {
   const netSalary = basicSalary + commission + bonus - advance - deductions
 
   const salary = await Salary.create({
-    ownerId: req.user._id,
+    ownerId: req.scopeOwnerId,
     staffId, userId: staff.userId,
     month, year,
     basicSalary, commission, advance, deductions, bonus,
@@ -26,7 +26,7 @@ export const paySalary = asyncHandler(async (req, res) => {
 })
 
 export const getSalaryHistory = asyncHandler(async (req, res) => {
-  const history = await Salary.find({ staffId: req.params.staffId, ownerId: req.user._id })
+  const history = await Salary.find({ staffId: req.params.staffId, ownerId: req.scopeOwnerId })
     .sort({ year:-1, month:-1 }).lean()
   res.json(new ApiResponse(200, history))
 })

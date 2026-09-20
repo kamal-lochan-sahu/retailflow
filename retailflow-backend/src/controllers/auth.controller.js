@@ -95,7 +95,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
 })
 
 export const getMe = asyncHandler(async (req, res) => {
-  const settings = await Settings.findOne({ ownerId: req.user.role === 'owner' ? req.user._id : req.user._id })
+  const settings = await Settings.findOne({ ownerId: req.scopeOwnerId })
   res.json(new ApiResponse(200, { user: req.user, settings }))
 })
 

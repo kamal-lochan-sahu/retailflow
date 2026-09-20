@@ -13,6 +13,10 @@ const UserSchema = new mongoose.Schema({
     enum: ['owner','manager','cashier','stockboy','delivery'],
     default: 'cashier'
   },
+  // Set only for staff accounts (role !== 'owner'). Points at the owning
+  // User whose shop this person works in — this is what auth.middleware.js
+  // resolves into req.scopeOwnerId so staff logins see the shop's data.
+  shopOwnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   branding: {
     shopName:    { type: String, default: () => process.env.SHOP_NAME },
     logo:        String,

@@ -5,7 +5,7 @@ import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const getCustomerLedger = asyncHandler(async (req, res) => {
-  const customer = await Customer.findOne({ _id: req.params.customerId, ownerId: req.user._id })
+  const customer = await Customer.findOne({ _id: req.params.customerId, ownerId: req.scopeOwnerId })
   if (!customer) throw new ApiError(404, 'Customer not found')
 
   const ledger = await UdhaarLedger.find({ customerId: req.params.customerId })
@@ -20,7 +20,7 @@ export const getCustomerLedger = asyncHandler(async (req, res) => {
 export const recordPayment = asyncHandler(async (req, res) => {
   const { customerId, amount, paymentMode, note } = req.body
 
-  const customer = await Customer.findOne({ _id: customerId, ownerId: req.user._id })
+  const customer = await Customer.findOne({ _id: customerId, ownerId: req.scopeOwnerId })
   if (!customer) throw new ApiError(404, 'Customer not found')
   if (amount > customer.outstandingBalance) throw new ApiError(400, 'Payment exceeds outstanding balance')
 
@@ -29,7 +29,7 @@ export const recordPayment = asyncHandler(async (req, res) => {
   await Customer.findByIdAndUpdate(customerId, { outstandingBalance: newBalance })
 
   await UdhaarLedger.create({
-    ownerId: req.user._id, customerId,
+    ownerId: req.scopeOwnerId, customerId,
     type: 'payment',
     amount, balance: newBalance,
     note: note || `Payment received (${paymentMode})`,
@@ -42,12 +42,12 @@ export const recordPayment = asyncHandler(async (req, res) => {
 
 export const getUdhaarReport = asyncHandler(async (req, res) => {
   const defaulters = await Customer.find({
-    ownerId: req.user._id,
+    ownerId: req.scopeOwnerId,
     outstandingBalance: { $gt: 0 }
   }).sort({ outstandingBalance: -1 })
 
   const [agg] = await Customer.aggregate([
-    { $match: { ownerId: req.user._id, outstandingBalance: { $gt: 0 } } },
+    { $match: { ownerId: req.scopeOwnerId, outstandingBalance: { $gt: 0 } } },
     { $group: { _id: null, total: { $sum: '$outstandingBalance' }, count: { $sum: 1 } } }
   ])
 

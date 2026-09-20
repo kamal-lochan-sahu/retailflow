@@ -10,7 +10,7 @@ import { exportSalesToExcel } from '../utils/excel.utils.js'
 import dayjs from 'dayjs'
 
 export const getDashboard = asyncHandler(async (req, res) => {
-  const cacheKey = `dashboard:${req.user._id}:${dayjs().format('YYYY-MM-DD-HH')}`
+  const cacheKey = `dashboard:${req.scopeOwnerId}:${dayjs().format('YYYY-MM-DD-HH')}`
   const cached   = await getCache(cacheKey)
   if (cached) return res.json(new ApiResponse(200, cached))
 
@@ -20,29 +20,29 @@ export const getDashboard = asyncHandler(async (req, res) => {
   const [todaySales, monthSales, pendingUdhaar, lowStockCount, recentSales, topProducts, revenue30] =
     await Promise.all([
       Sale.aggregate([
-        { $match: { ownerId: req.user._id, status:'completed', createdAt: today } },
+        { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt: today } },
         { $group: { _id:null, total:{$sum:'$totalAmount'}, count:{$sum:1}, profit:{$sum:{$subtract:['$totalAmount', {$multiply:[{$sum:'$items.purchasePrice'},{$sum:'$items.quantity'}]}]}} } }
       ]),
       Sale.aggregate([
-        { $match: { ownerId: req.user._id, status:'completed', createdAt: month } },
+        { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt: month } },
         { $group: { _id:null, total:{$sum:'$totalAmount'} } }
       ]),
       Customer.aggregate([
-        { $match: { ownerId: req.user._id, outstandingBalance:{$gt:0} } },
+        { $match: { ownerId: req.scopeOwnerId, outstandingBalance:{$gt:0} } },
         { $group: { _id:null, total:{$sum:'$outstandingBalance'}, count:{$sum:1} } }
       ]),
-      Product.countDocuments({ ownerId: req.user._id, isActive:true, $expr:{$lte:['$stock','$minStock']} }),
-      Sale.find({ ownerId: req.user._id, status:'completed' })
+      Product.countDocuments({ ownerId: req.scopeOwnerId, isActive:true, $expr:{$lte:['$stock','$minStock']} }),
+      Sale.find({ ownerId: req.scopeOwnerId, status:'completed' })
         .sort({createdAt:-1}).limit(5)
         .populate('customerId','name').lean(),
       Sale.aggregate([
-        { $match: { ownerId: req.user._id, status:'completed', createdAt: today } },
+        { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt: today } },
         { $unwind: '$items' },
         { $group: { _id:'$items.productId', name:{$first:'$items.name'}, qty:{$sum:'$items.quantity'}, revenue:{$sum:'$items.total'} } },
         { $sort: {revenue:-1} }, { $limit: 5 }
       ]),
       Sale.aggregate([
-        { $match: { ownerId: req.user._id, status:'completed', createdAt:{$gte: dayjs().subtract(30,'day').toDate()} } },
+        { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{$gte: dayjs().subtract(30,'day').toDate()} } },
         { $group: { _id:{ $dateToString:{format:'%Y-%m-%d', date:'$createdAt'} }, revenue:{$sum:'$totalAmount'}, count:{$sum:1} } },
         { $sort: {_id:1} }
       ])
@@ -80,7 +80,7 @@ export const getSalesAnalytics = asyncHandler(async (req, res) => {
 
   const [salesData, paymentBreakdown] = await Promise.all([
     Sale.aggregate([
-      { $match: { ownerId: req.user._id, status:'completed', createdAt:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{$gte:start,$lte:end} } },
       { $group: {
         _id: { $dateToString:{format:'%Y-%m-%d', date:'$createdAt'} },
         revenue: {$sum:'$totalAmount'},
@@ -90,7 +90,7 @@ export const getSalesAnalytics = asyncHandler(async (req, res) => {
       { $sort: {_id:1} }
     ]),
     Sale.aggregate([
-      { $match: { ownerId: req.user._id, status:'completed', createdAt:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{$gte:start,$lte:end} } },
       { $group: { _id:'$paymentMode', total:{$sum:'$totalAmount'}, count:{$sum:1} } }
     ])
   ])
@@ -106,15 +106,15 @@ export const getProfitReport = asyncHandler(async (req, res) => {
 
   const [revenue, expenses, purchases] = await Promise.all([
     Sale.aggregate([
-      { $match: { ownerId:req.user._id, status:'completed', createdAt:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{$gte:start,$lte:end} } },
       { $group: { _id:null, total:{$sum:'$totalAmount'}, gst:{$sum:'$gstAmount'} } }
     ]),
     Expense.aggregate([
-      { $match: { ownerId:req.user._id, date:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, date:{$gte:start,$lte:end} } },
       { $group: { _id:'$category', total:{$sum:'$amount'} } }
     ]),
     Purchase.aggregate([
-      { $match: { ownerId:req.user._id, status:'received', createdAt:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, status:'received', createdAt:{$gte:start,$lte:end} } },
       { $group: { _id:null, total:{$sum:'$totalAmount'} } }
     ])
   ])
@@ -140,7 +140,7 @@ export const getGSTReport = asyncHandler(async (req, res) => {
   const end   = dayjs(`${y}-${m}-01`).endOf('month').toDate()
 
   const gstData = await Sale.aggregate([
-    { $match: { ownerId:req.user._id, isGstBill:true, status:'completed', createdAt:{$gte:start,$lte:end} } },
+    { $match: { ownerId: req.scopeOwnerId, isGstBill:true, status:'completed', createdAt:{$gte:start,$lte:end} } },
     { $unwind: '$items' },
     { $group: {
       _id: '$items.gstPercent',
@@ -165,7 +165,7 @@ export const exportReport = asyncHandler(async (req, res) => {
 
   if (type === 'sales') {
     const sales = await Sale.find({
-      ownerId: req.user._id,
+      ownerId: req.scopeOwnerId,
       status: 'completed',
       createdAt: { $gte: start, $lte: end }
     }).populate('customerId','name').populate('staffId','name').lean()

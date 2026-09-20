@@ -14,7 +14,7 @@ import dayjs from 'dayjs'
 
 // ── Create Sale ────────────────────────────────────────────────
 export const createSale = asyncHandler(async (req, res) => {
-  const ownerId = req.user._id
+  const ownerId = req.scopeOwnerId
   const {
     items, customerId, paymentMode, payments,
     discountAmount = 0, discountType = 'flat',
@@ -191,7 +191,7 @@ export const createSale = asyncHandler(async (req, res) => {
 // ── List Sales ─────────────────────────────────────────────────
 export const getSales = asyncHandler(async (req, res) => {
   const { page=1, limit=20, from, to, paymentMode, staffId, status='completed' } = req.query
-  const filter = { ownerId: req.user._id, status }
+  const filter = { ownerId: req.scopeOwnerId, status }
 
   if (from || to) {
     filter.createdAt = {}
@@ -224,7 +224,7 @@ export const getSales = asyncHandler(async (req, res) => {
 })
 
 export const getSale = asyncHandler(async (req, res) => {
-  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
     .populate('customerId','name phone address')
     .populate('staffId','name')
   if (!sale) throw new ApiError(404, 'Sale not found')
@@ -232,7 +232,7 @@ export const getSale = asyncHandler(async (req, res) => {
 })
 
 export const voidSale = asyncHandler(async (req, res) => {
-  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
   if (!sale) throw new ApiError(404, 'Sale not found')
   if (sale.status === 'void') throw new ApiError(400, 'Sale already voided')
 
@@ -258,11 +258,11 @@ export const voidSale = asyncHandler(async (req, res) => {
 })
 
 export const getBill = asyncHandler(async (req, res) => {
-  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
     .populate('customerId','name phone address')
   if (!sale) throw new ApiError(404, 'Sale not found')
 
-  const settings = await Settings.findOne({ ownerId: req.user._id })
+  const settings = await Settings.findOne({ ownerId: req.scopeOwnerId })
   const pdf = await createBillPDF(sale.toObject(), settings?.toObject() || { shop: {} })
 
   res.set({
@@ -280,7 +280,7 @@ export const getDailySummary = asyncHandler(async (req, res) => {
 
   const [[summary], topItems] = await Promise.all([
     Sale.aggregate([
-      { $match: { ownerId: req.user._id, status:'completed', createdAt:{ $gte:start, $lte:end } } },
+      { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{ $gte:start, $lte:end } } },
       { $group: {
         _id:        null,
         totalSales: { $sum: '$totalAmount' },
@@ -293,7 +293,7 @@ export const getDailySummary = asyncHandler(async (req, res) => {
       }}
     ]),
     Sale.aggregate([
-      { $match: { ownerId: req.user._id, status:'completed', createdAt:{ $gte:start, $lte:end } } },
+      { $match: { ownerId: req.scopeOwnerId, status:'completed', createdAt:{ $gte:start, $lte:end } } },
       { $unwind: '$items' },
       { $group: { _id:'$items.productId', name:{$first:'$items.name'}, qty:{$sum:'$items.quantity'}, revenue:{$sum:'$items.total'} } },
       { $sort: { revenue:-1 } }, { $limit: 5 }

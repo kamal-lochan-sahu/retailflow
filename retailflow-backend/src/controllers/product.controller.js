@@ -11,7 +11,7 @@ import { Readable } from 'stream'
 
 export const getProducts = asyncHandler(async (req, res) => {
   const { page=1, limit=20, category, search, minStock, status, sortBy='createdAt', order='desc' } = req.query
-  const ownerId = req.user.role === 'owner' ? req.user._id : req.user._id
+  const ownerId = req.scopeOwnerId
 
   const filter = { ownerId, isActive: true }
   if (category)        filter.category = category
@@ -34,7 +34,7 @@ export const getProducts = asyncHandler(async (req, res) => {
 })
 
 export const getProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const product = await Product.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
     .populate('category','name')
   if (!product) throw new ApiError(404, 'Product not found')
 
@@ -45,25 +45,25 @@ export const getProduct = asyncHandler(async (req, res) => {
 })
 
 export const createProduct = asyncHandler(async (req, res) => {
-  const product = await Product.create({ ...req.body, ownerId: req.user._id })
-  await delCache(`products:${req.user._id}`)
+  const product = await Product.create({ ...req.body, ownerId: req.scopeOwnerId })
+  await delCache(`products:${req.scopeOwnerId}`)
   res.status(201).json(new ApiResponse(201, product, 'Product created'))
 })
 
 export const updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.user._id },
+    { _id: req.params.id, ownerId: req.scopeOwnerId },
     req.body,
     { new: true, runValidators: true }
   )
   if (!product) throw new ApiError(404, 'Product not found')
-  await delCache(`products:${req.user._id}`)
+  await delCache(`products:${req.scopeOwnerId}`)
   res.json(new ApiResponse(200, product, 'Product updated'))
 })
 
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.user._id },
+    { _id: req.params.id, ownerId: req.scopeOwnerId },
     { isActive: false },
     { new: true }
   )
@@ -72,10 +72,10 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 })
 
 export const getByBarcode = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ barcode: req.params.code, ownerId: req.user._id, isActive: true })
+  const product = await Product.findOne({ barcode: req.params.code, ownerId: req.scopeOwnerId, isActive: true })
     .populate('category','name')
   if (!product) {
-    const variant = await ProductVariant.findOne({ barcode: req.params.code, ownerId: req.user._id })
+    const variant = await ProductVariant.findOne({ barcode: req.params.code, ownerId: req.scopeOwnerId })
       .populate('productId')
     if (!variant) throw new ApiError(404, 'Product not found for this barcode')
     return res.json(new ApiResponse(200, { product: variant.productId, variant }))
@@ -85,7 +85,7 @@ export const getByBarcode = asyncHandler(async (req, res) => {
 
 export const getLowStock = asyncHandler(async (req, res) => {
   const products = await Product.find({
-    ownerId: req.user._id,
+    ownerId: req.scopeOwnerId,
     isActive: true,
     $expr: { $lte: ['$stock', '$minStock'] }
   }).populate('category','name').sort({ stock: 1 }).lean()
@@ -96,7 +96,7 @@ export const getExpiring = asyncHandler(async (req, res) => {
   const days   = parseInt(req.query.days) || 30
   const cutoff = new Date(Date.now() + days * 24 * 3600 * 1000)
   const batches = await ProductBatch.find({
-    ownerId: req.user._id,
+    ownerId: req.scopeOwnerId,
     expiryDate: { $lte: cutoff },
     remainingQty: { $gt: 0 },
     isExpired: false,
@@ -121,9 +121,9 @@ export const bulkImport = asyncHandler(async (req, res) => {
   for (const row of results) {
     try {
       await Product.findOneAndUpdate(
-        { ownerId: req.user._id, sku: row.sku || row.SKU },
+        { ownerId: req.scopeOwnerId, sku: row.sku || row.SKU },
         {
-          ownerId: req.user._id,
+          ownerId: req.scopeOwnerId,
           name:          row.name || row.Name,
           sku:           row.sku  || row.SKU,
           barcode:       row.barcode,
@@ -148,7 +148,7 @@ export const bulkImport = asyncHandler(async (req, res) => {
 export const adjustStock = asyncHandler(async (req, res) => {
   const { adjustment, reason } = req.body
   const product = await Product.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.user._id },
+    { _id: req.params.id, ownerId: req.scopeOwnerId },
     { $inc: { stock: adjustment } },
     { new: true }
   )

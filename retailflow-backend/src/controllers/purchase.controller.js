@@ -9,7 +9,7 @@ import { generateBillNumber } from '../utils/billNumber.utils.js'
 
 export const getPurchases = asyncHandler(async (req, res) => {
   const { page=1, limit=20, supplierId, status } = req.query
-  const filter = { ownerId: req.user._id }
+  const filter = { ownerId: req.scopeOwnerId }
   if (supplierId) filter.supplierId = supplierId
   if (status)     filter.status     = status
 
@@ -29,21 +29,21 @@ export const getPurchases = asyncHandler(async (req, res) => {
 })
 
 export const getPurchase = asyncHandler(async (req, res) => {
-  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
     .populate('supplierId','name phone email')
   if (!purchase) throw new ApiError(404, 'Purchase not found')
   res.json(new ApiResponse(200, purchase))
 })
 
 export const createPurchase = asyncHandler(async (req, res) => {
-  const poNumber = await generateBillNumber(req.user._id, 'PO')
-  const purchase = await Purchase.create({ ...req.body, ownerId: req.user._id, poNumber })
+  const poNumber = await generateBillNumber(req.scopeOwnerId, 'PO')
+  const purchase = await Purchase.create({ ...req.body, ownerId: req.scopeOwnerId, poNumber })
   res.status(201).json(new ApiResponse(201, purchase, 'Purchase order created'))
 })
 
 export const updatePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.user._id, status: { $in: ['draft','sent'] } },
+    { _id: req.params.id, ownerId: req.scopeOwnerId, status: { $in: ['draft','sent'] } },
     req.body,
     { new: true }
   )
@@ -52,7 +52,7 @@ export const updatePurchase = asyncHandler(async (req, res) => {
 })
 
 export const receivePurchase = asyncHandler(async (req, res) => {
-  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.user._id })
+  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
   if (!purchase) throw new ApiError(404, 'Purchase not found')
   if (purchase.status === 'received') throw new ApiError(400, 'Already received')
 
@@ -77,7 +77,7 @@ export const receivePurchase = asyncHandler(async (req, res) => {
     .filter(item => item.batchNumber && item.expiryDate)
     .map(item => ({
       productId:     item.productId,
-      ownerId:       req.user._id,
+      ownerId: req.scopeOwnerId,
       supplierId:    purchase.supplierId,
       batchNumber:   item.batchNumber,
       expiryDate:    item.expiryDate,

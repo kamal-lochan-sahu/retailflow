@@ -25,8 +25,7 @@ export const runLowStockJob = async () => {
         ownerId: owner._id,
         type:    'low_stock',
         title:   `📦 ${lowStock.length} products running low`,
-        message: lowStock.slice(0,10).map(p => `${p.name}: ${p.stock} ${p.unit}`).join('
-'),
+        message: lowStock.slice(0,10).map(p => `${p.name}: ${p.stock} ${p.unit}`).join('\n'),
         channel: 'inapp',
       })
 

@@ -32,16 +32,14 @@ export const runExpiryAlertJob = async () => {
           ownerId: owner._id,
           type:    'expiry',
           title:   `⚠️ ${criticalItems.length} products expiring within 7 days`,
-          message: criticalItems.map(b => `${b.productId?.name} — Batch: ${b.batchNumber} — Exp: ${dayjs(b.expiryDate).format('DD/MM/YYYY')}`).join('
-'),
+          message: criticalItems.map(b => `${b.productId?.name} — Batch: ${b.batchNumber} — Exp: ${dayjs(b.expiryDate).format('DD/MM/YYYY')}`).join('\n'),
           channel: 'inapp',
         })
 
         if (settings?.notifications?.expiryAlert && owner.branding?.phone) {
           const lines = criticalItems.slice(0,5).map(b =>
             `• ${b.productId?.name} (${dayjs(b.expiryDate).format('DD MMM')})`
-          ).join('
-')
+          ).join('\n')
           await sendWhatsApp(owner.branding.phone,
             `⚠️ *Expiry Alert — ${owner.branding.shopName}*
 
