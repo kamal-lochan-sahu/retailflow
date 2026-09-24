@@ -4,7 +4,7 @@ import { getExpiring } from '../../services/product.service.js'
 import { PageLoader } from '../../components/common/Loader.jsx'
 import { formatDate } from '../../utils/formatCurrency.js'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
-import dayjs from 'date-fns'
+
 
 export default function ExpiryAlerts() {
   const { data, isLoading } = useQuery({ queryKey:['expiring'], queryFn: ()=>getExpiring(30) })

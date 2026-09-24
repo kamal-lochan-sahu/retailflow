@@ -3,7 +3,7 @@ import Joi from 'joi'
 export const createSaleSchema = Joi.object({
   items: Joi.array().items(Joi.object({
     productId:    Joi.string().required(),
-    variantId:    Joi.string().optional(),
+    variantId:    Joi.string().optional().allow(null, ''),
     quantity:     Joi.number().min(0.01).required(),
     sellingPrice: Joi.number().min(0).optional(),
     discount:     Joi.number().min(0).default(0),
