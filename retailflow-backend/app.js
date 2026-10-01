@@ -15,6 +15,7 @@ import customerRoutes    from './src/routes/customer.routes.js'
 import saleRoutes        from './src/routes/sale.routes.js'
 import saleReturnRoutes  from './src/routes/saleReturn.routes.js'
 import purchaseRoutes    from './src/routes/purchase.routes.js'
+import purchaseReturnRoutes from './src/routes/purchaseReturn.routes.js'
 import supplierRoutes    from './src/routes/supplier.routes.js'
 import udhaarRoutes      from './src/routes/udhaar.routes.js'
 import onlineOrderRoutes from './src/routes/onlineOrder.routes.js'
@@ -58,6 +59,7 @@ app.use('/api/customers',  customerRoutes)
 app.use('/api/sales',      saleRoutes)
 app.use('/api/returns',    saleReturnRoutes)
 app.use('/api/purchases',  purchaseRoutes)
+app.use('/api/purchase-returns', purchaseReturnRoutes)
 app.use('/api/suppliers',  supplierRoutes)
 app.use('/api/udhaar',     udhaarRoutes)
 app.use('/api/orders',     onlineOrderRoutes)
