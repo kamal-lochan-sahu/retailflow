@@ -13,6 +13,9 @@ const SupplierSchema = new mongoose.Schema({
   rating:             { type: Number, min: 1, max: 5, default: 3 },
   notes:              String,
   isActive:           { type: Boolean, default: true },
+  isDeleted:          { type: Boolean, default: false },
+  deletedAt:          { type: Date, default: null },
+  deletedBy:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 SupplierSchema.index({ ownerId: 1 })

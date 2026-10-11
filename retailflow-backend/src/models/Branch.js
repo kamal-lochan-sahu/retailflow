@@ -9,6 +9,9 @@ const BranchSchema = new mongoose.Schema({
   managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isActive:  { type: Boolean, default: true },
   isDefault: { type: Boolean, default: false },
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 BranchSchema.index({ ownerId: 1 })

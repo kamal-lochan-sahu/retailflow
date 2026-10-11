@@ -17,6 +17,9 @@ const NotificationSchema = new mongoose.Schema({
   isRead:    { type: Boolean, default: false },
   readAt:    Date,
   error:     String,
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 NotificationSchema.index({ ownerId: 1, isRead: 1, createdAt: -1 })

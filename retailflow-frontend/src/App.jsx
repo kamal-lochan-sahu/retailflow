@@ -27,6 +27,7 @@ import Settings      from './pages/Settings.jsx'
 import LowStock      from './pages/products/LowStock.jsx'
 import ExpiryAlerts  from './pages/products/ExpiryAlerts.jsx'
 import OnlineOrders  from './pages/online-orders/OnlineOrders.jsx'
+import AuditTrail    from './pages/audit/AuditTrail.jsx'
 
 const PrivateRoute = ({ children }) => {
   const token = useAuthStore(s => s.accessToken)
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="expenses"           element={<Expenses />} />
         <Route path="analytics"          element={<Analytics />} />
         <Route path="orders"             element={<OnlineOrders />} />
+        <Route path="audit-trail"        element={<AuditTrail />} />
         <Route path="settings"           element={<Settings />} />
       </Route>
     </Routes>

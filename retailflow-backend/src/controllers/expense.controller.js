@@ -2,10 +2,11 @@ import Expense from '../models/Expense.js'
 import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { logDeletion } from '../utils/auditLog.utils.js'
 
 export const getAll = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20 } = req.query
-  const filter = { ownerId: req.scopeOwnerId }
+  const filter = { ownerId: req.scopeOwnerId, isDeleted: { $ne: true } }
   const skip   = (parseInt(page) - 1) * parseInt(limit)
 
   const [expenses, total, totalAmountAgg] = await Promise.all([
@@ -22,7 +23,7 @@ export const getAll = asyncHandler(async (req, res) => {
 })
 
 export const getOne = asyncHandler(async (req, res) => {
-  const item = await Expense.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId})
+  const item = await Expense.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } })
   if (!item) throw new ApiError(404, 'Expense not found')
   res.json(new ApiResponse(200, item))
 })
@@ -34,7 +35,7 @@ export const create = asyncHandler(async (req, res) => {
 
 export const update = asyncHandler(async (req, res) => {
   const item = await Expense.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.scopeOwnerId},
+    { _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } },
     req.body, { new: true}
   )
   if (!item) throw new ApiError(404, 'Expense not found')
@@ -42,7 +43,12 @@ export const update = asyncHandler(async (req, res) => {
 })
 
 export const remove = asyncHandler(async (req, res) => {
-  const item = await Expense.findOneAndDelete({ _id: req.params.id, ownerId: req.scopeOwnerId})
+  const item = await Expense.findOneAndUpdate(
+    { _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } },
+    { isDeleted: true, deletedAt: new Date(), deletedBy: req.user._id },
+    { new: true }
+  )
   if (!item) throw new ApiError(404, 'Expense not found')
+  await logDeletion(req, 'Expense', item)
   res.json(new ApiResponse(200, {}, 'Expense deleted'))
 })

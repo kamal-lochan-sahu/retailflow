@@ -3,18 +3,19 @@ import User from '../models/User.js'
 import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { logDeletion } from '../utils/auditLog.utils.js'
 
 const STAFF_ROLES = ['manager', 'cashier', 'stockboy', 'delivery']
 const userFields  = 'name email phone role isActive lastLogin'
 
 export const getAll = asyncHandler(async (req, res) => {
-  const filter = { ownerId: req.scopeOwnerId }
+  const filter = { ownerId: req.scopeOwnerId, isDeleted: { $ne: true } }
   const items  = await Staff.find(filter).sort({ createdAt: -1 }).populate('userId', userFields).lean()
   res.json(new ApiResponse(200, items))
 })
 
 export const getOne = asyncHandler(async (req, res) => {
-  const item = await Staff.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId }).populate('userId', userFields)
+  const item = await Staff.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } }).populate('userId', userFields)
   if (!item) throw new ApiError(404, 'Staff not found')
   res.json(new ApiResponse(200, item))
 })
@@ -60,7 +61,7 @@ export const update = asyncHandler(async (req, res) => {
     name, phone, role
   } = req.body
 
-  const item = await Staff.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
+  const item = await Staff.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } })
   if (!item) throw new ApiError(404, 'Staff not found')
 
   const staffUpdate = { designation, salary, commission, emergencyContact, joiningDate, isActive }
@@ -85,13 +86,18 @@ export const update = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, staffWithUser, 'Staff updated'))
 })
 
-// Removes the HR record and deactivates the login (not a hard User delete —
-// historical Sale.staffId / Purchase.receivedBy attribution stays intact and
-// still resolves via populate; deactivating is what actually blocks login,
-// same check authenticate() already does for any inactive user).
+// Soft-deletes the HR record (kept for the audit trail and so historical
+// Sale.staffId / Purchase.receivedBy attribution still resolves via populate)
+// and deactivates the login — deactivating is what actually blocks login,
+// same check authenticate() already does for any inactive user.
 export const remove = asyncHandler(async (req, res) => {
-  const item = await Staff.findOneAndDelete({ _id: req.params.id, ownerId: req.scopeOwnerId })
+  const item = await Staff.findOneAndUpdate(
+    { _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } },
+    { isDeleted: true, deletedAt: new Date(), deletedBy: req.user._id },
+    { new: true }
+  )
   if (!item) throw new ApiError(404, 'Staff not found')
   await User.findByIdAndUpdate(item.userId, { isActive: false })
+  await logDeletion(req, 'Staff', item)
   res.json(new ApiResponse(200, {}, 'Staff removed and login deactivated'))
 })

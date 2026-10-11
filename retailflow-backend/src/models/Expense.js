@@ -15,6 +15,9 @@ const ExpenseSchema = new mongoose.Schema({
   approvedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status:      { type: String, enum: ['pending','approved','rejected'], default: 'approved' },
   addedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  isDeleted:   { type: Boolean, default: false },
+  deletedAt:   { type: Date, default: null },
+  deletedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 ExpenseSchema.index({ ownerId: 1, date: -1 })

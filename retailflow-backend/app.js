@@ -25,6 +25,7 @@ import analyticsRoutes   from './src/routes/analytics.routes.js'
 import settingsRoutes    from './src/routes/settings.routes.js'
 import uploadRoutes      from './src/routes/upload.routes.js'
 import posRoutes         from './src/routes/pos.routes.js'
+import auditLogRoutes    from './src/routes/auditLog.routes.js'
 
 const app = express()
 
@@ -69,6 +70,7 @@ app.use('/api/analytics',  analyticsRoutes)
 app.use('/api/settings',   settingsRoutes)
 app.use('/api/upload',     uploadRoutes)
 app.use('/api/pos',        posRoutes)
+app.use('/api/audit-logs', auditLogRoutes)
 
 app.get('/health', (_, res) => res.json({
   status: 'ok',

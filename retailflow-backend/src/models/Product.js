@@ -49,6 +49,8 @@ const ProductSchema = new mongoose.Schema({
   isActive:   { type: Boolean, default: true },
   isFeatured: { type: Boolean, default: false },
   isOnlineVisible: { type: Boolean, default: true },
+  deletedAt:  { type: Date, default: null },
+  deletedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true })
 
 ProductSchema.index({ ownerId: 1 })

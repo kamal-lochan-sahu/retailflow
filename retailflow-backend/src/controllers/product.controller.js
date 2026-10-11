@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { getCache, setCache, delCache } from '../config/redis.js'
+import { logDeletion } from '../utils/auditLog.utils.js'
 import csv from 'csv-parser'
 import { Readable } from 'stream'
 
@@ -64,10 +65,12 @@ export const updateProduct = asyncHandler(async (req, res) => {
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findOneAndUpdate(
     { _id: req.params.id, ownerId: req.scopeOwnerId },
-    { isActive: false },
+    { isActive: false, deletedAt: new Date(), deletedBy: req.user._id },
     { new: true }
   )
   if (!product) throw new ApiError(404, 'Product not found')
+  await delCache(`products:${req.scopeOwnerId}`)
+  await logDeletion(req, 'Product', product)
   res.json(new ApiResponse(200, {}, 'Product deleted'))
 })
 

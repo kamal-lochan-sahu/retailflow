@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore.js'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
-  Settings, ChevronLeft, ChevronRight, Globe, CreditCard
+  Settings, ChevronLeft, ChevronRight, Globe, CreditCard, History
 } from 'lucide-react'
 
 const NAV = [
@@ -20,6 +20,7 @@ const NAV = [
   { to:'/expenses',  icon: Wallet,          label:'Expenses'     },
   { to:'/orders',    icon: Globe,           label:'Online Orders'},
   { to:'/analytics', icon: BarChart3,       label:'Analytics'    },
+  { to:'/audit-trail', icon: History,       label:'Audit Trail', ownerOnly: true },
   { to:'/settings',  icon: Settings,        label:'Settings'     },
 ]
 
@@ -48,7 +49,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {NAV.map(({ to, icon: Icon, label, highlight }) => {
+        {NAV.filter(item => !item.ownerOnly || user?.role === 'owner').map(({ to, icon: Icon, label, highlight }) => {
           const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
           return (
             <Link key={to} to={to}
