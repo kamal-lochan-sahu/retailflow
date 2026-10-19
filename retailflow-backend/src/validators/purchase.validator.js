@@ -15,5 +15,5 @@ export const createPurchaseSchema = Joi.object({
   invoiceNumber:  Joi.string().optional(),
   invoiceDate:    Joi.date().optional(),
   paymentMode:    Joi.string().optional(),
-  notes:          Joi.string().optional(),
+  notes:          Joi.string().allow('', null).optional(),
 }).options({ stripUnknown: true })

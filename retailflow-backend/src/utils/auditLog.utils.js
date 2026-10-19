@@ -6,7 +6,7 @@ const describeDoc = (model, doc) => {
   if (doc.name) return doc.name
   if (doc.title) return doc.title
   if (doc.poNumber) return doc.poNumber
-  if (doc.designation) return `Staff — ${doc.designation}`
+  if (doc.designation) return doc.designation
   if (model === 'Expense') return `${doc.category || 'expense'}${doc.description ? ' — ' + doc.description : ''}`
   return String(doc._id)
 }

@@ -11,11 +11,17 @@ export default function AddPurchase() {
   const navigate = useNavigate()
   const qc       = useQueryClient()
   const [items, setItems]       = useState([])
-  const [supplierSearch, setSS] = useState('')
+  const [supplierId, setSupplierId] = useState('')
   const [prodSearch, setPS]     = useState('')
   const [prodResults, setPR]    = useState([])
   const [submitting, setSub]    = useState(false)
   const [notes, setNotes]       = useState('')
+
+  const { data: suppliersData } = useQuery({
+    queryKey: ['suppliers-for-purchase'],
+    queryFn:  () => api.get('/suppliers', { params: { limit: 200 } }),
+  })
+  const suppliers = suppliersData?.data?.data?.suppliers || []
 
   const searchProd = async (q) => {
     setPS(q)
@@ -49,6 +55,7 @@ export default function AddPurchase() {
     setSub(true)
     try {
       const purchase = await api.post('/purchases', {
+        supplierId: supplierId || undefined,
         items: items.map(i=>({
           productId:     i.productId,
           quantity:      parseFloat(i.quantity),
@@ -77,6 +84,17 @@ export default function AddPurchase() {
       <div className="flex items-center gap-3">
         <button onClick={()=>navigate('/purchases')} className="btn-ghost p-2 rounded-lg"><ArrowLeft size={18}/></button>
         <h1 className="text-2xl font-bold text-slate-800">New Purchase</h1>
+      </div>
+
+      {/* Supplier */}
+      <div className="card p-5">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Supplier</label>
+        <select value={supplierId} onChange={e=>setSupplierId(e.target.value)} className="input text-sm">
+          <option value="">— No supplier (Direct) —</option>
+          {suppliers.map(s=>(
+            <option key={s._id} value={s._id}>{s.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Product Search */}
