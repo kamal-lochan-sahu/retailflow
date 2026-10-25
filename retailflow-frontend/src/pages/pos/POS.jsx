@@ -87,6 +87,47 @@ export default function POS() {
     } finally { setSubmitting(false) }
   }
 
+  // Keyboard shortcuts — F2 search, F4 hold, F9 checkout, Esc/Enter in payment modal.
+  // F6 is deliberately not used: Chrome/Firefox reserve it for focusing the address bar,
+  // and that can't be overridden from the page.
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        searchRef.current?.focus()
+        return
+      }
+      if (e.key === 'F4') {
+        if (cart.length && !showPayment) {
+          e.preventDefault()
+          holdBill()
+        }
+        return
+      }
+      if (e.key === 'F9') {
+        if (cart.length && !showPayment) {
+          e.preventDefault()
+          setShowPayment(true)
+        }
+        return
+      }
+      if (e.key === 'Escape' && showPayment) {
+        e.preventDefault()
+        setShowPayment(false)
+        return
+      }
+      if (e.key === 'Enter' && showPayment) {
+        // The search/barcode box has its own Enter-to-scan handler (handleBarcode) — leave
+        // it alone so a stray scan while the modal is open doesn't also submit payment.
+        if (e.target === searchRef.current) return
+        e.preventDefault()
+        handleCheckout()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [cart.length, showPayment, holdBill, handleCheckout])
+
   const subtotal = getSubtotal()
   const gst      = getGSTAmount()
   const total    = getTotal()
@@ -265,6 +306,13 @@ export default function POS() {
                 Checkout
               </button>
             </div>
+            <p className="text-[11px] text-slate-400 text-center">
+              <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">F2</kbd> search
+              <span className="mx-1.5">·</span>
+              <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">F4</kbd> hold
+              <span className="mx-1.5">·</span>
+              <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">F9</kbd> checkout
+            </p>
           </div>
         )}
       </div>
@@ -313,6 +361,11 @@ export default function POS() {
             className="btn-primary w-full py-3 text-base">
             {submitting ? 'Processing...' : `Confirm Payment ${formatINR(total)}`}
           </button>
+          <p className="text-[11px] text-slate-400 text-center">
+            <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">Enter</kbd> confirm
+            <span className="mx-1.5">·</span>
+            <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono">Esc</kbd> cancel
+          </p>
         </div>
       </Modal>
     </div>
