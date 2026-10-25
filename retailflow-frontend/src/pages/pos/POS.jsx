@@ -134,7 +134,7 @@ export default function POS() {
   const change   = cashTendered ? parseFloat(cashTendered) - total : 0
 
   return (
-    <div className="h-full flex gap-4 -m-6 p-6 min-h-[calc(100vh-5rem)]">
+    <div className="h-full flex flex-col lg:flex-row gap-4 -m-6 p-6 pb-28 lg:pb-6 min-h-[calc(100vh-5rem)]">
 
       {/* LEFT — Product Search */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -227,7 +227,7 @@ export default function POS() {
       </div>
 
       {/* RIGHT — Cart */}
-      <div className="w-80 lg:w-96 flex flex-col card overflow-hidden">
+      <div className="w-full lg:w-80 xl:w-96 flex flex-col card overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
           <ShoppingCart size={16} className="text-brand-600"/>
           <span className="font-semibold text-slate-800">Cart</span>
@@ -246,17 +246,17 @@ export default function POS() {
             <div key={item.key} className="bg-slate-50 rounded-xl p-3">
               <div className="flex items-start gap-2 mb-2">
                 <p className="flex-1 text-sm font-medium text-slate-800 leading-tight">{item.name}</p>
-                <button onClick={() => removeItem(item.key)} className="text-slate-300 hover:text-red-400 mt-0.5"><X size={14}/></button>
+                <button onClick={() => removeItem(item.key)} className="text-slate-300 hover:text-red-400 mt-0.5 p-1 -m-1"><X size={14}/></button>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg">
-                  <button onClick={() => updateQty(item.key, item.quantity - 1)} className="p-1.5 hover:bg-slate-50 rounded-l-lg"><Minus size={12}/></button>
+                  <button onClick={() => updateQty(item.key, item.quantity - 1)} className="p-2.5 hover:bg-slate-50 rounded-l-lg"><Minus size={12}/></button>
                   <input
                     type="number" value={item.quantity} min="0.01" step="any"
                     onChange={e => updateQty(item.key, parseFloat(e.target.value) || 0)}
                     className="w-10 text-center text-sm font-medium border-0 outline-none bg-transparent"
                   />
-                  <button onClick={() => updateQty(item.key, item.quantity + 1)} className="p-1.5 hover:bg-slate-50 rounded-r-lg"><Plus size={12}/></button>
+                  <button onClick={() => updateQty(item.key, item.quantity + 1)} className="p-2.5 hover:bg-slate-50 rounded-r-lg"><Plus size={12}/></button>
                 </div>
                 <span className="text-xs text-slate-500">{item.unit}</span>
                 <span className="ml-auto text-sm font-bold text-slate-800">{formatINR(item.total)}</span>
@@ -316,6 +316,22 @@ export default function POS() {
           </div>
         )}
       </div>
+
+      {/* Mobile sticky cart bar — on a phone the cart sits below search results / hold
+          bills / customer search, which can push it well out of view. This keeps the
+          running total and checkout one tap away without scrolling to find them.
+          Hidden at lg+, where the cart is already its own permanently-visible column. */}
+      {cart.length > 0 && !showPayment && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] p-3 flex items-center gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500">{cart.length} item{cart.length > 1 ? 's' : ''}</p>
+            <p className="text-lg font-bold text-slate-800 truncate">{formatINR(total)}</p>
+          </div>
+          <button onClick={() => setShowPayment(true)} className="btn-primary flex-1 py-3">
+            Checkout
+          </button>
+        </div>
+      )}
 
       {/* Payment Modal */}
       <Modal open={showPayment} onClose={() => setShowPayment(false)} title="Payment" size="sm">
