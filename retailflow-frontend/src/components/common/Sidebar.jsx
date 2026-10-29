@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore.js'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
-  Settings, ChevronLeft, ChevronRight, Globe, CreditCard, History
+  Settings, ChevronLeft, ChevronRight, Globe, CreditCard, History, FileText
 } from 'lucide-react'
 
 const NAV = [
@@ -20,6 +20,7 @@ const NAV = [
   { to:'/expenses',  icon: Wallet,          label:'Expenses'     },
   { to:'/orders',    icon: Globe,           label:'Online Orders'},
   { to:'/analytics', icon: BarChart3,       label:'Analytics'    },
+  { to:'/gst-returns', icon: FileText,      label:'GST Returns', ownerOnly: true },
   { to:'/audit-trail', icon: History,       label:'Audit Trail', ownerOnly: true },
   { to:'/settings',  icon: Settings,        label:'Settings'     },
 ]

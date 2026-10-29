@@ -28,6 +28,7 @@ import LowStock      from './pages/products/LowStock.jsx'
 import ExpiryAlerts  from './pages/products/ExpiryAlerts.jsx'
 import OnlineOrders  from './pages/online-orders/OnlineOrders.jsx'
 import AuditTrail    from './pages/audit/AuditTrail.jsx'
+import GSTR1         from './pages/gst/GSTR1.jsx'
 
 const PrivateRoute = ({ children }) => {
   const token = useAuthStore(s => s.accessToken)
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="analytics"          element={<Analytics />} />
         <Route path="orders"             element={<OnlineOrders />} />
         <Route path="audit-trail"        element={<AuditTrail />} />
+        <Route path="gst-returns"        element={<GSTR1 />} />
         <Route path="settings"           element={<Settings />} />
       </Route>
     </Routes>
