@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import Modal from '../../components/common/Modal.jsx'
 import { searchCustomers } from '../../services/customer.service.js'
 import toast from 'react-hot-toast'
+import { isOnline, queueOfflineSale, newClientId } from '../../services/offlineSync.js'
+import { searchCachedProducts, findCachedByBarcode, searchCachedCustomers } from '../../utils/offlineDb.js'
 import { Search, Barcode, Plus, Minus, X, ShoppingCart, User, Tag, Clock } from 'lucide-react'
 
 export default function POS() {
@@ -34,51 +36,101 @@ export default function POS() {
     if (!q.trim()) return setResults([])
     setSearching(true)
     try {
-      const { data } = await searchProducts(q)
-      setResults(data.data.products || [])
-    } catch {} finally { setSearching(false) }
+      if (!isOnline()) {
+        setResults(await searchCachedProducts(q))
+      } else {
+        try {
+          const { data } = await searchProducts(q)
+          setResults(data.data.products || [])
+        } catch (e) {
+          // No response at all = connection problem: fall back to the offline copy.
+          if (!e.response) setResults(await searchCachedProducts(q))
+        }
+      }
+    } finally { setSearching(false) }
   }
 
   const handleBarcode = async (e) => {
     if (e.key !== 'Enter') return
+    const code = search.trim()
+    if (!code) return
     try {
-      const { data } = await searchByBarcode(search.trim())
-      addItem(data.data.product, data.data.variant)
+      let found
+      if (!isOnline()) {
+        found = await findCachedByBarcode(code)
+      } else {
+        try {
+          const { data } = await searchByBarcode(code)
+          found = data.data
+        } catch (e) {
+          if (e.response) throw e
+          found = await findCachedByBarcode(code)
+        }
+      }
+      if (!found?.product) throw new Error('not found')
+      addItem(found.product, found.variant)
       setSearch('')
       setResults([])
-      toast.success(`Added: ${data.data.product.name}`)
+      toast.success(`Added: ${found.product.name}`)
     } catch {
-      toast.error('Product not found for this barcode')
+      toast.error(isOnline() ? 'Product not found for this barcode' : 'Not found in the offline product list')
     }
   }
 
   const searchCustomerFn = async (q) => {
     setCustomerSearch(q)
     if (!q.trim()) return setCustomers([])
-    const { data } = await searchCustomers(q)
-    setCustomers(data.data || [])
+    if (!isOnline()) return setCustomers(await searchCachedCustomers(q))
+    try {
+      const { data } = await searchCustomers(q)
+      setCustomers(data.data || [])
+    } catch (e) {
+      if (!e.response) setCustomers(await searchCachedCustomers(q))
+    }
+  }
+
+  // No connection: keep the sale on this device (queued, synced automatically later).
+  const saveOffline = async (payload) => {
+    const { sendWhatsApp, ...sale } = payload // a bill message hours later would only confuse
+    await queueOfflineSale(sale, { total: getTotal(), itemCount: cart.length })
+    clearCart()
+    setShowPayment(false)
+    toast.success('📴 Saved offline — it will sync automatically when you are back online', { duration: 5000 })
   }
 
   const handleCheckout = async () => {
     if (!cart.length) return toast.error('Cart is empty')
     setSubmitting(true)
+    // clientId makes the sale idempotent: if the response is lost and we fall back to
+    // the offline queue, the server recognises it and never bills twice.
+    const payload = {
+      clientId: newClientId(),
+      items: cart.map(i => ({
+        productId:    i.productId,
+        variantId:    i.variantId,
+        quantity:     i.quantity,
+        sellingPrice: i.sellingPrice,
+        discount:     i.discount,
+        discountType: i.discountType,
+      })),
+      customerId:     customer?._id,
+      paymentMode:    payMode,
+      payments:       [{ mode: payMode, amount: getTotal() }],
+      discountAmount: discount,
+      discountType,
+      sendWhatsApp:   !!(customer?.phone),
+    }
     try {
-      await createSale({
-        items: cart.map(i => ({
-          productId:    i.productId,
-          variantId:    i.variantId,
-          quantity:     i.quantity,
-          sellingPrice: i.sellingPrice,
-          discount:     i.discount,
-          discountType: i.discountType,
-        })),
-        customerId:     customer?._id,
-        paymentMode:    payMode,
-        payments:       [{ mode: payMode, amount: getTotal() }],
-        discountAmount: discount,
-        discountType,
-        sendWhatsApp:   !!(customer?.phone),
-      })
+      if (!isOnline()) {
+        await saveOffline(payload)
+        return
+      }
+      try {
+        await createSale(payload)
+      } catch (e) {
+        if (!e.response) { await saveOffline(payload); return } // connection dropped mid-checkout
+        throw e
+      }
       clearCart()
       setShowPayment(false)
       toast.success('✅ Sale completed!')

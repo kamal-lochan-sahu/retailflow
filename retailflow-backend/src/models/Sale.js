@@ -58,11 +58,21 @@ const SaleSchema = new mongoose.Schema({
 
   isOnlineOrder: { type: Boolean, default: false },
   orderId:       { type: mongoose.Schema.Types.ObjectId, ref: 'OnlineOrder' },
+
+  // Offline billing — clientId is the idempotency key generated on the till; a sale
+  // rung up offline is replayed to the server later, possibly more than once.
+  clientId:     String,
+  isOffline:    { type: Boolean, default: false },
+  syncedAt:     Date,
+  // Set when the sale can't be fully trusted as-is (e.g. stock went negative on sync).
+  needsReview:  { type: Boolean, default: false },
+  reviewReason: String,
 }, { timestamps: true })
 
 SaleSchema.index({ ownerId: 1, createdAt: -1 })
 SaleSchema.index({ billNumber: 1 })
 SaleSchema.index({ ownerId: 1, customerId: 1 })
 SaleSchema.index({ ownerId: 1, status: 1 })
+SaleSchema.index({ ownerId: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } })
 
 export default mongoose.model('Sale', SaleSchema)

@@ -27,13 +27,17 @@ api.interceptors.response.use(
         useAuthStore.getState().setToken(data.data.accessToken)
         original.headers.Authorization = `Bearer ${data.data.accessToken}`
         return api(original)
-      } catch {
+      } catch (refreshErr) {
+        // No response at all = offline / server unreachable. That's not a dead
+        // session — don't log the cashier out mid-shift.
+        if (!refreshErr.response) return Promise.reject(error)
         useAuthStore.getState().logout()
         window.location.href = '/login'
       }
     }
     const msg = error.response?.data?.message || 'Something went wrong'
-    if (error.response?.status !== 401) toast.error(msg)
+    // `silent` = background calls (offline sync/cache refresh); and no toast while offline.
+    if (error.response?.status !== 401 && !original.silent && (error.response || navigator.onLine)) toast.error(msg)
     return Promise.reject(error)
   }
 )

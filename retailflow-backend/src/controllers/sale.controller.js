@@ -12,6 +12,12 @@ import { sendBillWhatsApp } from '../utils/whatsapp.utils.js'
 import { io } from '../../server.js'
 import dayjs from 'dayjs'
 
+// Used by createSale and syncOfflineSale to make retries safe (see Sale.clientId).
+const findSaleByClientId = (ownerId, clientId) =>
+  Sale.findOne({ ownerId, clientId })
+    .populate('customerId', 'name phone')
+    .populate('staffId', 'name')
+
 // ── Create Sale ────────────────────────────────────────────────
 export const createSale = asyncHandler(async (req, res) => {
   const ownerId = req.scopeOwnerId
@@ -19,10 +25,17 @@ export const createSale = asyncHandler(async (req, res) => {
     items, customerId, paymentMode, payments,
     discountAmount = 0, discountType = 'flat',
     notes, isGstBill = false, sendWhatsApp: sendWA = false,
-    pointsRedeemed = 0, branchId, counterId
+    pointsRedeemed = 0, branchId, counterId, clientId
   } = req.body
 
   if (!items?.length) throw new ApiError(400, 'Items required')
+
+  // Idempotency: if the response to an earlier attempt was lost (flaky signal), the
+  // till retries with the same clientId — hand back the existing sale, don't re-bill.
+  if (clientId) {
+    const existing = await findSaleByClientId(ownerId, clientId)
+    if (existing) return res.status(200).json(new ApiResponse(200, existing, 'Sale already recorded'))
+  }
 
   // ── FIX: Fetch ALL products in ONE query (was N+1 loop) ────
   const productIds = items.map(i => i.productId)
@@ -98,6 +111,7 @@ export const createSale = asyncHandler(async (req, res) => {
 
   const sale = await Sale.create({
     ownerId, branchId, billNumber, counterId,
+    clientId: clientId || undefined,
     customerId: customerId || null,
     staffId: req.user._id,
     items: enrichedItems,
@@ -186,6 +200,159 @@ export const createSale = asyncHandler(async (req, res) => {
     .populate('staffId', 'name')
 
   res.status(201).json(new ApiResponse(201, populated, 'Sale completed'))
+})
+
+// ── Sync an offline sale ───────────────────────────────────────
+// A sale rung up with no connection: the goods have already left and the money is
+// collected, so unlike createSale this never rejects for stock. It records the sale,
+// lets stock go negative if it must, and flags the sale for the owner to review.
+// Idempotent on clientId — replaying a queued sale can never bill twice.
+export const syncOfflineSale = asyncHandler(async (req, res) => {
+  const ownerId = req.scopeOwnerId
+  const {
+    items, customerId, paymentMode, payments,
+    discountAmount = 0, discountType = 'flat',
+    notes, isGstBill = false,
+    pointsRedeemed = 0, branchId, counterId,
+    clientId, offlineCreatedAt,
+  } = req.body
+
+  const existing = await findSaleByClientId(ownerId, clientId)
+  if (existing) return res.status(200).json(new ApiResponse(200, existing, 'Already synced'))
+
+  // Inactive (deleted since it was cached) products are still fine — the sale happened.
+  const products   = await Product.find({ _id: { $in: items.map(i => i.productId) }, ownerId }).lean()
+  const productMap = new Map(products.map(p => [p._id.toString(), p]))
+
+  for (const item of items) {
+    if (!productMap.has(item.productId.toString()))
+      throw new ApiError(422, `Product no longer exists: ${item.productId}`)
+  }
+
+  const soldQty = new Map()
+  for (const item of items) {
+    const k = item.productId.toString()
+    soldQty.set(k, (soldQty.get(k) || 0) + item.quantity)
+  }
+  const oversold = []
+  for (const [k, qty] of soldQty) {
+    const p = productMap.get(k)
+    if (p.stock < qty) oversold.push(`${p.name} (had ${p.stock}, sold ${qty})`)
+  }
+
+  const settings = await Settings.findOne({ ownerId }).lean()
+
+  let subtotal = 0, gstAmount = 0
+  const enrichedItems = items.map(item => {
+    const product      = productMap.get(item.productId.toString())
+    const sellingPrice = item.sellingPrice || product.sellingPrice
+    const lineDiscount = item.discountType === 'percent'
+      ? (sellingPrice * item.quantity * (item.discount || 0)) / 100
+      : (item.discount || 0)
+    const lineTotal = (sellingPrice * item.quantity) - lineDiscount
+    const gst       = (lineTotal * product.gstPercent) / 100
+    subtotal  += lineTotal
+    gstAmount += gst
+    return {
+      productId:    product._id,
+      variantId:    item.variantId || null,
+      name:         product.name,
+      sku:          product.sku,
+      barcode:      product.barcode,
+      unit:         product.unit,
+      mrp:          product.mrp,
+      sellingPrice,
+      discount:     item.discount || 0,
+      discountType: item.discountType || 'flat',
+      gstPercent:   product.gstPercent,
+      gstAmount:    Math.round(gst * 100) / 100,
+      quantity:     item.quantity,
+      total:        lineTotal,
+    }
+  })
+
+  const appliedDiscount = discountType === 'percent' ? (subtotal * discountAmount) / 100 : discountAmount
+  const totalAmount     = Math.round(subtotal - appliedDiscount + gstAmount)
+
+  let creditAmount = 0
+  if (paymentMode === 'credit') creditAmount = totalAmount
+  else if (paymentMode === 'split' && payments)
+    creditAmount = payments.find(p => p.mode === 'credit')?.amount || 0
+
+  let pointsEarned = 0
+  if (settings?.loyalty?.enabled && customerId)
+    pointsEarned = Math.floor(totalAmount * (settings.loyalty.pointsPerRupee || 1))
+
+  // The real, sequential bill number can only be assigned by the server — so it's
+  // assigned now, at sync time. (The till showed a temporary OFF-xxxxxx reference.)
+  const billNumber = await generateBillNumber(ownerId, settings?.billing?.prefix || 'INV')
+
+  const sale = await Sale.create({
+    ownerId, branchId, billNumber, counterId, clientId,
+    customerId: customerId || null,
+    staffId: req.user._id,
+    items: enrichedItems,
+    subtotal: Math.round(subtotal),
+    discountAmount: appliedDiscount,
+    discountType,
+    gstAmount: Math.round(gstAmount),
+    roundOff: 0,
+    totalAmount,
+    paymentMode,
+    payments: paymentMode === 'split' ? payments : [{ mode: paymentMode, amount: totalAmount }],
+    creditAmount,
+    paidAmount: totalAmount - creditAmount,
+    pointsEarned,
+    pointsRedeemed,
+    notes,
+    isGstBill,
+    status: 'completed',
+    isOffline: true,
+    syncedAt: new Date(),
+    createdAt: new Date(offlineCreatedAt),
+    needsReview: oversold.length > 0,
+    reviewReason: oversold.length ? `Sold offline with insufficient stock: ${oversold.join('; ')}` : undefined,
+  })
+
+  // Unconditional deduction (no $gte guard): the goods are gone, the books must say so.
+  await Product.bulkWrite(enrichedItems.map(item => ({
+    updateOne: { filter: { _id: item.productId }, update: { $inc: { stock: -item.quantity } } }
+  })), { ordered: false })
+
+  if (customerId) {
+    await Customer.findByIdAndUpdate(customerId, {
+      $inc: {
+        outstandingBalance: creditAmount,
+        loyaltyPoints:      pointsEarned - pointsRedeemed,
+        totalLoyaltyEarned: pointsEarned,
+        totalPurchase:      totalAmount,
+        visitCount:         1,
+      },
+      $set: { lastVisit: new Date(offlineCreatedAt) }
+    })
+  }
+
+  if (creditAmount > 0 && customerId) {
+    const updatedCustomer = await Customer.findById(customerId).select('outstandingBalance').lean()
+    await UdhaarLedger.create({
+      ownerId, customerId,
+      type:    'credit',
+      saleId:  sale._id,
+      amount:  creditAmount,
+      balance: updatedCustomer?.outstandingBalance || creditAmount,
+      note:    `Sale ${billNumber} (offline)`,
+      staffId: req.user._id,
+    })
+  }
+
+  io.to(ownerId.toString()).emit('new_sale', {
+    billNumber, totalAmount, paymentMode, items: enrichedItems.length
+  })
+
+  const populated = await Sale.findById(sale._id)
+    .populate('customerId', 'name phone')
+    .populate('staffId', 'name')
+  res.status(201).json(new ApiResponse(201, populated, 'Offline sale synced'))
 })
 
 // ── List Sales ─────────────────────────────────────────────────

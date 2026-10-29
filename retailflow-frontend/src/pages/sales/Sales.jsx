@@ -66,6 +66,8 @@ export default function Sales() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`badge-${s.status==='completed'?'green':s.status==='void'?'red':'yellow'}`}>{s.status}</span>
+                    {s.needsReview && <span className="badge-yellow ml-1" title={s.reviewReason}>review</span>}
+                    {s.isOffline && !s.needsReview && <span className="badge-blue ml-1" title="Rung up offline, synced later">offline</span>}
                   </td>
                   <td className="px-4 py-3">
                     <Link to={`/sales/${s._id}`} className="text-brand-600 text-xs hover:underline">View</Link>

@@ -20,4 +20,11 @@ export const createSaleSchema = Joi.object({
   pointsRedeemed: Joi.number().min(0).default(0),
   branchId:       Joi.string().optional(),
   counterId:      Joi.string().optional(),
+  clientId:       Joi.string().max(64).optional(),
 }).options({ stripUnknown: true })
+
+// Offline sales are replayed with the time they were actually rung up.
+export const syncOfflineSaleSchema = createSaleSchema.keys({
+  clientId:         Joi.string().max(64).required(),
+  offlineCreatedAt: Joi.date().iso().required(),
+})

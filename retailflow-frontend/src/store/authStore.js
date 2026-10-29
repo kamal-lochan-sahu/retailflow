@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api.js'
+import { clearOfflineCache } from '../utils/offlineDb.js'
 
 export const useAuthStore = create(
   persist(
@@ -19,6 +20,9 @@ export const useAuthStore = create(
       logout: async () => {
         try { await api.post('/auth/logout') } catch {}
         set({ user: null, accessToken: null, settings: null })
+        // Cached products/customers belong to this shop — don't leave them on a shared device.
+        // (Unsynced offline sales are kept; they sync when their cashier logs back in.)
+        clearOfflineCache()
         delete api.defaults.headers.common['Authorization']
       },
 

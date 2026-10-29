@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App.jsx'
 import ErrorBoundary from './components/common/ErrorBoundary.jsx'
+import PWAStatus from './components/common/PWAStatus.jsx'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
+        <PWAStatus />
         <Toaster
           position="top-right"
           toastOptions={{
