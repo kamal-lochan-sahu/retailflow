@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUIStore } from '../../store/uiStore.js'
 import { useAuthStore } from '../../store/authStore.js'
 import {
-  LayoutDashboard, ShoppingCart, Package, Users, Receipt,
+  X, LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
   Settings, ChevronLeft, ChevronRight, Globe, CreditCard, History, FileText
 } from 'lucide-react'
@@ -28,6 +28,8 @@ const NAV = [
 export default function Sidebar() {
   const open     = useUIStore(s => s.sidebarOpen)
   const toggle   = useUIStore(s => s.toggleSidebar)
+  const mobileNavOpen = useUIStore(s => s.mobileNavOpen)
+  const setMobileNav  = useUIStore(s => s.setMobileNav)
   const location = useLocation()
 
   // Get shop name from settings (updated on save) or fallback to user branding
@@ -36,16 +38,17 @@ export default function Sidebar() {
   const shopName  = settings?.shop?.name || user?.branding?.shopName || 'RetailFlow'
 
   return (
-    <aside className={`fixed left-0 top-0 h-full bg-white border-r border-slate-100 shadow-sm z-30 transition-all duration-200 flex flex-col ${open ? 'w-64' : 'w-16'}`}>
+    <aside className={`fixed left-0 top-0 h-full bg-white border-r border-slate-100 shadow-sm z-40 transition-all duration-200 flex flex-col w-64 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 ${open ? 'lg:w-64' : 'lg:w-16'}`}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-100">
         <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
           RF
         </div>
-        {open && <span className="font-semibold text-slate-800 truncate text-sm">{shopName}</span>}
-        <button onClick={toggle} className="ml-auto text-slate-400 hover:text-slate-600">
+        <span className={`font-semibold text-slate-800 truncate text-sm ${open ? '' : 'lg:hidden'}`}>{shopName}</span>
+        <button onClick={toggle} className="ml-auto text-slate-400 hover:text-slate-600 hidden lg:block">
           {open ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
         </button>
+        <button onClick={() => setMobileNav(false)} className="ml-auto text-slate-400 hover:text-slate-600 lg:hidden" aria-label="Close menu"><X size={18}/></button>
       </div>
 
       {/* Nav */}
@@ -58,7 +61,7 @@ export default function Sidebar() {
               title={!open ? label : undefined}
             >
               <Icon size={18} className="flex-shrink-0"/>
-              {open && <span>{label}</span>}
+              <span className={open ? '' : 'lg:hidden'}>{label}</span>
             </Link>
           )
         })}

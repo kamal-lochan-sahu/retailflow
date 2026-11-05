@@ -1,4 +1,5 @@
-import { Bell, LogOut, User } from 'lucide-react'
+import { Bell, LogOut, User, Menu } from 'lucide-react'
+import { useUIStore } from '../../store/uiStore.js'
 import { useAuthStore } from '../../store/authStore.js'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -6,6 +7,9 @@ import toast from 'react-hot-toast'
 export default function Navbar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const mobileNavOpen = useUIStore(s => s.mobileNavOpen)
+  const setMobileNav = useUIStore(s => s.setMobileNav)
+  const toggleMobileNav = () => setMobileNav(!mobileNavOpen)
 
   const handleLogout = async () => {
     await logout()
@@ -14,8 +18,9 @@ export default function Navbar() {
   }
 
   return (
-    <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
-      <div />
+    <header className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+      <button onClick={toggleMobileNav} className="btn-ghost p-2 rounded-lg lg:hidden" aria-label="Open menu"><Menu size={20}/></button>
+      <div className="hidden lg:block" />
       <div className="flex items-center gap-3">
         <button className="relative btn-ghost p-2 rounded-lg">
           <Bell size={18}/>

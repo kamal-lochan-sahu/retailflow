@@ -44,7 +44,10 @@ export default function GSTR1() {
   const s = result?.summary
   const issues = result?.issues || []
   const errors = issues.filter(i => i.severity === 'error').length
-  const hsn = [...(result?.json?.hsn?.hsn_b2b || []), ...(result?.json?.hsn?.hsn_b2c || [])]
+  const hsnRows = [
+    ...(result?.json?.hsn?.hsn_b2b || []).map(r => ({ ...r, type: 'B2B' })),
+    ...(result?.json?.hsn?.hsn_b2c || []).map(r => ({ ...r, type: 'B2C' })),
+  ]
 
   return (
     <div className="space-y-5">
@@ -110,18 +113,19 @@ export default function GSTR1() {
             })}
           </div>
 
-          {hsn.length > 0 && (
+          {hsnRows.length > 0 && (
             <div className="card overflow-x-auto">
               <h2 className="font-semibold text-slate-800 p-4 pb-2">HSN summary</h2>
               <table className="w-full text-sm">
                 <thead><tr className="bg-slate-50">
-                  {['HSN', 'Description', 'UQC', 'Qty', 'Rate', 'Taxable', 'Tax'].map(h => (
+                  {['Type', 'HSN', 'Description', 'UQC', 'Qty', 'Rate', 'Taxable', 'Tax'].map(h => (
                     <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-left">{h}</th>
                   ))}
                 </tr></thead>
                 <tbody className="divide-y divide-slate-50">
-                  {hsn.map((r, i) => (
+                  {hsnRows.map((r, i) => (
                     <tr key={i}>
+                      <td className="px-4 py-2 text-xs font-semibold text-slate-500">{r.type}</td>
                       <td className="px-4 py-2 font-mono">{r.hsn_sc}</td>
                       <td className="px-4 py-2">{r.desc}</td>
                       <td className="px-4 py-2">{r.uqc}</td>

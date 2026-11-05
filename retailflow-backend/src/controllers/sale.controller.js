@@ -7,6 +7,7 @@ import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { generateBillNumber } from '../utils/billNumber.utils.js'
+import SaleReturn from '../models/SaleReturn.js'
 import { createBillPDF } from '../utils/pdf.utils.js'
 import { sendBillWhatsApp } from '../utils/whatsapp.utils.js'
 import { io } from '../../server.js'
@@ -402,6 +403,7 @@ export const voidSale = asyncHandler(async (req, res) => {
   const sale = await Sale.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
   if (!sale) throw new ApiError(404, 'Sale not found')
   if (sale.status === 'void') throw new ApiError(400, 'Sale already voided')
+  if (await SaleReturn.exists({ saleId: sale._id })) throw new ApiError(400, 'Sale has returns and cannot be voided')
 
   sale.status = 'void'
   await sale.save()
