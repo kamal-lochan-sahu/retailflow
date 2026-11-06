@@ -38,9 +38,12 @@ export const createCustomer = asyncHandler(async (req, res) => {
 })
 
 export const updateCustomer = asyncHandler(async (req, res) => {
+  // Money / loyalty counters move only through sales, udhaar payments and returns — never by a direct edit
+  // (otherwise any cashier could zero a customer's udhaar balance with one PUT).
+  const { outstandingBalance, loyaltyPoints, totalLoyaltyEarned, totalPurchase, visitCount, lastVisit, ...changes } = req.body
   const customer = await Customer.findOneAndUpdate(
     { _id: req.params.id, ownerId: req.scopeOwnerId },
-    req.body, { new: true }
+    changes, { new: true }
   )
   if (!customer) throw new ApiError(404, 'Customer not found')
   res.json(new ApiResponse(200, customer, 'Customer updated'))

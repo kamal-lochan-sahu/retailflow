@@ -8,18 +8,19 @@ export const useAuthStore = create(
     (set, get) => ({
       user:        null,
       accessToken: null,
+      refreshToken: null,
       settings:    null,
 
       login: async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password })
-        set({ user: data.data.user, accessToken: data.data.accessToken })
+        set({ user: data.data.user, accessToken: data.data.accessToken, refreshToken: data.data.refreshToken })
         api.defaults.headers.common['Authorization'] = `Bearer ${data.data.accessToken}`
         return data.data.user
       },
 
       logout: async () => {
-        try { await api.post('/auth/logout') } catch {}
-        set({ user: null, accessToken: null, settings: null })
+        try { await api.post('/auth/logout', { refreshToken: get().refreshToken }) } catch {}
+        set({ user: null, accessToken: null, refreshToken: null, settings: null })
         // Cached products/customers belong to this shop — don't leave them on a shared device.
         // (Unsynced offline sales are kept; they sync when their cashier logs back in.)
         clearOfflineCache()
@@ -48,7 +49,7 @@ export const useAuthStore = create(
     }),
     {
       name: 'retailflow-auth',
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, settings: s.settings }),
+      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, refreshToken: s.refreshToken, settings: s.settings }),
     }
   )
 )

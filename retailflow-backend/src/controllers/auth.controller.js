@@ -9,11 +9,27 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { sendPasswordResetEmail } from '../utils/email.utils.js'
 import { delCache } from '../config/redis.js'
 
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-}
+// ── Sessions ─────────────────────────────────────────────────
+// The frontend (Vercel) and API (Render) are on different domains, so a cookie can
+// neither be sent reliably nor read without cookie-parser (which this app never had —
+// that is why silent refresh used to fail and everyone was logged out every 15 minutes).
+// The refresh token is therefore returned in the JSON body and sent back in the body.
+//
+// Up to MAX_SESSIONS refresh tokens (stored only as SHA-256 hashes) can be valid at once,
+// so the owner can be logged in on a phone and a laptop together. Logging out revokes only
+// that device's token. A token close to expiry is swapped for a fresh one on refresh; the
+// old one stays valid until it expires, so two tabs refreshing at once cannot lock each
+// other out.
+const MAX_SESSIONS = 8
+const ROTATE_WHEN_LEFT_SEC = 2 * 24 * 3600
+
+const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
+
+// jti makes every refresh token unique, even two issued in the same second (JWTs have 1s resolution).
+const newRefreshToken = (userId) => generateRefreshToken({ _id: userId, jti: crypto.randomUUID() })
+
+const addSession = (userId, refreshToken) =>
+  User.updateOne({ _id: userId }, { $push: { refreshTokens: { $each: [sha(refreshToken)], $slice: -MAX_SESSIONS } } })
 
 export const register = asyncHandler(async (req, res) => {
   const { name, email, phone, password, shopName } = req.body
@@ -41,57 +57,65 @@ export const register = asyncHandler(async (req, res) => {
   })
 
   const accessToken  = generateAccessToken({ _id: user._id })
-  const refreshToken = generateRefreshToken({ _id: user._id })
-  user.refreshToken  = refreshToken
-  await user.save({ validateBeforeSave: false })
+  const refreshToken = newRefreshToken(user._id)
+  await addSession(user._id, refreshToken)
 
-  const userData = await User.findById(user._id).select('-password -refreshToken')
+  const userData = await User.findById(user._id).select('-password -refreshToken -refreshTokens')
 
   res.status(201)
-    .cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 3600 * 1000 })
-    .json(new ApiResponse(201, { user: userData, accessToken }, 'Registered successfully'))
+    .json(new ApiResponse(201, { user: userData, accessToken, refreshToken }, 'Registered successfully'))
 })
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body
-  const user = await User.findOne({ email }).select('+password +refreshToken')
+  const user = await User.findOne({ email }).select('+password')
   if (!user || !user.isActive) throw new ApiError(401, 'Invalid credentials')
   if (!await user.isPasswordCorrect(password)) throw new ApiError(401, 'Invalid credentials')
 
   const accessToken  = generateAccessToken({ _id: user._id })
-  const refreshToken = generateRefreshToken({ _id: user._id })
-  user.refreshToken = refreshToken
-  user.lastLogin    = new Date()
-  await user.save({ validateBeforeSave: false })
+  const refreshToken = newRefreshToken(user._id)
+  await addSession(user._id, refreshToken)
+  await User.updateOne({ _id: user._id }, { lastLogin: new Date() })
 
-  const userData = await User.findById(user._id).select('-password -refreshToken')
+  const userData = await User.findById(user._id).select('-password -refreshToken -refreshTokens')
 
-  res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 3600 * 1000 })
-    .json(new ApiResponse(200, { user: userData, accessToken }, 'Login successful'))
+  res.json(new ApiResponse(200, { user: userData, accessToken, refreshToken }, 'Login successful'))
 })
 
+// Not behind authenticate: the access token has usually expired by the time someone
+// logs out, and the refresh token is the thing being revoked.
 export const logout = asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(req.user._id, { $unset: { refreshToken: 1 } })
-  await delCache(`user:${req.user._id}`)
-  res.clearCookie('refreshToken', cookieOptions)
-    .json(new ApiResponse(200, {}, 'Logged out'))
+  const token = req.body?.refreshToken
+  if (typeof token === 'string' && token) {
+    try {
+      const decoded = verifyRefreshToken(token)
+      await User.updateOne({ _id: decoded._id }, { $pull: { refreshTokens: sha(token) } })
+      await delCache(`user:${decoded._id}`)
+    } catch { /* expired / malformed — nothing to revoke */ }
+  }
+  res.json(new ApiResponse(200, {}, 'Logged out'))
 })
 
 export const refreshToken = asyncHandler(async (req, res) => {
-  const token = req.cookies?.refreshToken || req.body.refreshToken
-  if (!token) throw new ApiError(401, 'Refresh token required')
+  const token = req.body?.refreshToken
+  if (typeof token !== 'string' || !token) throw new ApiError(401, 'Refresh token required')
 
-  const decoded = verifyRefreshToken(token)
-  const user = await User.findById(decoded._id).select('+refreshToken')
-  if (!user || user.refreshToken !== token) throw new ApiError(401, 'Invalid refresh token')
+  let decoded
+  try { decoded = verifyRefreshToken(token) } catch { throw new ApiError(401, 'Invalid or expired refresh token') }
 
-  const newAccessToken  = generateAccessToken({ _id: user._id })
-  const newRefreshToken = generateRefreshToken({ _id: user._id })
-  user.refreshToken = newRefreshToken
-  await user.save({ validateBeforeSave: false })
+  const user = await User.findOne({ _id: decoded._id, refreshTokens: sha(token) }).select('isActive')
+  if (!user || !user.isActive) throw new ApiError(401, 'Invalid or expired refresh token')
 
-  res.cookie('refreshToken', newRefreshToken, { ...cookieOptions, maxAge: 7 * 24 * 3600 * 1000 })
-    .json(new ApiResponse(200, { accessToken: newAccessToken }, 'Token refreshed'))
+  const accessToken = generateAccessToken({ _id: user._id })
+  const payload = { accessToken }
+
+  const secondsLeft = (decoded.exp || 0) - Math.floor(Date.now() / 1000)
+  if (secondsLeft < ROTATE_WHEN_LEFT_SEC) {
+    payload.refreshToken = newRefreshToken(user._id)
+    await addSession(user._id, payload.refreshToken)
+  }
+
+  res.json(new ApiResponse(200, payload, 'Token refreshed'))
 })
 
 export const getMe = asyncHandler(async (req, res) => {
@@ -110,13 +134,13 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   user.resetExpires = expires
   await user.save({ validateBeforeSave: false })
 
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${token}`
+  const resetUrl = `${String(process.env.CLIENT_URL || '').split(',')[0].trim()}/reset-password/${token}`
   await sendPasswordResetEmail(user.email, user.name, resetUrl, process.env.SHOP_NAME)
   res.json(new ApiResponse(200, {}, 'Password reset email sent'))
 })
 
 export const resetPassword = asyncHandler(async (req, res) => {
-  const hashed = crypto.createHash('sha256').update(req.params.token).digest('hex')
+  const hashed = crypto.createHash('sha256').update(String(req.params.token)).digest('hex')
   const user = await User.findOne({
     resetToken: hashed,
     resetExpires: { $gt: Date.now() }
@@ -126,6 +150,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   user.password    = req.body.password
   user.resetToken  = undefined
   user.resetExpires = undefined
+  user.refreshTokens = []            // a reset means the old password may have leaked: sign out everywhere
   await user.save()
 
   res.json(new ApiResponse(200, {}, 'Password reset successful'))

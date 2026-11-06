@@ -6,6 +6,9 @@ import morgan from 'morgan'
 import compression from 'compression'
 import { errorHandler } from './src/middleware/error.middleware.js'
 import { apiRateLimit } from './src/middleware/rateLimit.middleware.js'
+import { sanitizeRequest } from './src/middleware/sanitize.middleware.js'
+import { getAllowedOrigins } from './src/config/origins.js'
+import mongoose from 'mongoose'
 
 import authRoutes        from './src/routes/auth.routes.js'
 import branchRoutes      from './src/routes/branch.routes.js'
@@ -29,10 +32,11 @@ import auditLogRoutes    from './src/routes/auditLog.routes.js'
 
 const app = express()
 
-const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
-  'http://localhost:3000',
-]
+// Render (and Vercel) sit behind a proxy: without this every visitor looks like the same IP,
+// so the rate limiters below would count the whole shop as one client.
+app.set('trust proxy', 1)
+
+const allowedOrigins = getAllowedOrigins()
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow PDF from different origin
@@ -40,15 +44,16 @@ app.use(helmet({
 app.use(compression())
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
-    cb(null, true) // allow all in development; restrict in production
+    // no Origin header = curl / server-to-server / direct PDF links; browsers must be on the allow-list
+    cb(null, !origin || allowedOrigins.includes(origin))
   },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   exposedHeaders: ['Content-Disposition','Content-Length'],
 }))
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(express.json({ limit: '2mb' }))
+app.use(express.urlencoded({ extended: true, limit: '2mb' }))
+app.use(sanitizeRequest)
 if (process.env.NODE_ENV !== 'production') app.use(morgan('dev'))
 app.use('/api', apiRateLimit)
 
@@ -72,12 +77,18 @@ app.use('/api/upload',     uploadRoutes)
 app.use('/api/pos',        posRoutes)
 app.use('/api/audit-logs', auditLogRoutes)
 
-app.get('/health', (_, res) => res.json({
-  status: 'ok',
-  shop:    process.env.SHOP_NAME,
-  ts:      new Date(),
-  version: '2.0.0',
-}))
+app.get('/health', (_, res) => {
+  const dbUp = mongoose.connection.readyState === 1
+  res.status(dbUp ? 200 : 503).json({
+    status:  dbUp ? 'ok' : 'degraded',
+    db:      dbUp ? 'connected' : 'disconnected',
+    shop:    process.env.SHOP_NAME,
+    ts:      new Date(),
+    version: '2.0.0',
+  })
+})
+
+app.use('/api', (req, res) => res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` }))
 
 app.use(errorHandler)
 export default app

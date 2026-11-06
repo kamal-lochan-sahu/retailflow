@@ -71,6 +71,7 @@ const SaleSchema = new mongoose.Schema({
 
 SaleSchema.index({ ownerId: 1, createdAt: -1 })
 SaleSchema.index({ billNumber: 1 })
+SaleSchema.index({ ownerId: 1, billNumber: 1 }, { unique: true })  // a bill number can never be issued twice in one shop
 SaleSchema.index({ ownerId: 1, customerId: 1 })
 SaleSchema.index({ ownerId: 1, status: 1 })
 SaleSchema.index({ ownerId: 1, clientId: 1 }, { unique: true, partialFilterExpression: { clientId: { $type: 'string' } } })

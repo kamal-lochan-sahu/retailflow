@@ -13,7 +13,7 @@ export default function Register() {
     try {
       const res = await import('../../services/api.js').then(m => m.default.post('/auth/register', data))
       useAuthStore.getState().setToken(res.data.data.accessToken)
-      useAuthStore.setState({ user: res.data.data.user })
+      useAuthStore.setState({ user: res.data.data.user, refreshToken: res.data.data.refreshToken })
       toast.success('Shop registered! Welcome 🎉')
       navigate('/')
     } catch (e) {

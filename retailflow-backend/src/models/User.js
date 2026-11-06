@@ -6,7 +6,8 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone: { type: String, trim: true },
   password:     { type: String, required: true, select: false },
-  refreshToken: { type: String, select: false },
+  refreshToken: { type: String, select: false },          // legacy single-session field, no longer used
+  refreshTokens: { type: [String], select: false, default: [] }, // SHA-256 hashes, one per logged-in device
   avatar: String,
   role: {
     type: String,

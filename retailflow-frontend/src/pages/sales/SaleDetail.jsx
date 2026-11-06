@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api.js'
 import { createSaleReturn, fetchSaleReturns } from '../../services/saleReturn.service.js'
+import { getBillPDF } from '../../services/pos.service.js'
 import { useAuthStore } from '../../store/authStore.js'
 import { PageLoader } from '../../components/common/Loader.jsx'
 import Modal from '../../components/common/Modal.jsx'
@@ -105,6 +106,21 @@ export default function SaleDetail() {
   const canReturn = role === 'owner' || role === 'manager'
   const [returning, setReturning] = useState(false)
 
+  // The bill endpoint needs the login token, so a plain <a href> can't open it — fetch it
+  // as a PDF and show it in a new tab. (The tab is opened first so pop-up blockers allow it.)
+  const printBill = async () => {
+    const tab = window.open('', '_blank')
+    try {
+      const res = await getBillPDF(id)
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      if (tab) tab.location.href = url; else window.location.href = url
+      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000)
+    } catch {
+      if (tab) tab.close()
+      toast.error('Could not load the bill')
+    }
+  }
+
   const { data, isLoading } = useQuery({
     queryKey: ['sale', id],
     queryFn:  () => api.get(`/sales/${id}`),
@@ -179,15 +195,15 @@ export default function SaleDetail() {
         </div>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          <a href={`/api/sales/${id}/bill`} target="_blank" className="btn-secondary flex-1 justify-center">
+          <button onClick={printBill} className="btn-secondary flex-1 justify-center">
             <Printer size={15}/> Print Bill
-          </a>
+          </button>
           {canReturnMore&&(
             <button onClick={()=>setReturning(true)} className="btn-secondary flex-1 justify-center">
               <RotateCcw size={15}/> Return
             </button>
           )}
-          {s.status==='completed'&&returns.length===0&&(
+          {canReturn&&s.status==='completed'&&returns.length===0&&(
             <button onClick={()=>voidMutation.mutate()} disabled={voidMutation.isPending}
               className="btn-danger flex-1 justify-center">
               <XCircle size={15}/>{voidMutation.isPending?'Voiding...':'Void Sale'}
