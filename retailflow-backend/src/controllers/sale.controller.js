@@ -438,7 +438,6 @@ export const getBill = asyncHandler(async (req, res) => {
     'Content-Type':        'application/pdf',
     'Content-Disposition': `inline; filename="${sale.billNumber}.pdf"`,
     'Content-Length':      pdf.length,
-    'Access-Control-Allow-Origin': '*',
   }).send(pdf)
 })
 
