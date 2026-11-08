@@ -6,8 +6,8 @@ import { managerUp } from '../middleware/role.middleware.js'
 
 const router = Router()
 router.use(authenticate)
-router.get('/dashboard', getDashboard)
-router.get('/sales',     getSalesAnalytics)
+router.get('/dashboard', managerUp, getDashboard)
+router.get('/sales',     managerUp, getSalesAnalytics)
 router.get('/profit',    managerUp, getProfitReport)
 router.get('/gst',       managerUp, getGSTReport)
 router.get('/gstr1',     managerUp, getGSTR1)

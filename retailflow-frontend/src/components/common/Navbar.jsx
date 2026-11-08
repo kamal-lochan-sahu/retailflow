@@ -1,7 +1,7 @@
 import { Bell, LogOut, User, Menu } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore.js'
 import { useAuthStore } from '../../store/authStore.js'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 export default function Navbar() {
@@ -27,13 +27,15 @@ export default function Navbar() {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"/>
         </button>
         <div className="flex items-center gap-2 pl-3 border-l border-slate-100">
-          <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center">
-            <User size={16} className="text-brand-600"/>
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-sm font-medium text-slate-800 leading-none">{user?.name}</p>
-            <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
-          </div>
+          <Link to="/account" title="My account / change password" className="flex items-center gap-2 rounded-lg hover:bg-slate-50 p-1 -m-1">
+            <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center">
+              <User size={16} className="text-brand-600"/>
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium text-slate-800 leading-none">{user?.name}</p>
+              <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
+            </div>
+          </Link>
           <button onClick={handleLogout} className="btn-ghost p-2 ml-1 text-red-500 hover:bg-red-50 rounded-lg">
             <LogOut size={16}/>
           </button>

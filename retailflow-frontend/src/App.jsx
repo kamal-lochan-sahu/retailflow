@@ -29,10 +29,19 @@ import ExpiryAlerts  from './pages/products/ExpiryAlerts.jsx'
 import OnlineOrders  from './pages/online-orders/OnlineOrders.jsx'
 import AuditTrail    from './pages/audit/AuditTrail.jsx'
 import GSTR1         from './pages/gst/GSTR1.jsx'
+import Account       from './pages/Account.jsx'
+import { landingFor, MANAGER_UP } from './utils/roles.js'
 
 const PrivateRoute = ({ children }) => {
   const token = useAuthStore(s => s.accessToken)
   return token ? children : <Navigate to="/login" replace />
+}
+
+// Page is rendered only for the listed roles; anyone else is sent to their own landing page.
+// (This is UX only — the API enforces the same rule on the server.)
+const RoleRoute = ({ roles, children }) => {
+  const role = useAuthStore(s => s.user?.role)
+  return roles.includes(role) ? children : <Navigate to={landingFor(role)} replace />
 }
 
 export default function App() {
@@ -41,7 +50,7 @@ export default function App() {
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
-        <Route index              element={<Dashboard />} />
+        <Route index              element={<RoleRoute roles={MANAGER_UP}><Dashboard /></RoleRoute>} />
         <Route path="pos"         element={<POS />} />
         <Route path="products"    element={<Products />} />
         <Route path="products/add"       element={<AddProduct />} />
@@ -58,11 +67,12 @@ export default function App() {
         <Route path="suppliers"          element={<Suppliers />} />
         <Route path="staff"              element={<Staff />} />
         <Route path="expenses"           element={<Expenses />} />
-        <Route path="analytics"          element={<Analytics />} />
+        <Route path="analytics"          element={<RoleRoute roles={MANAGER_UP}><Analytics /></RoleRoute>} />
         <Route path="orders"             element={<OnlineOrders />} />
         <Route path="audit-trail"        element={<AuditTrail />} />
         <Route path="gst-returns"        element={<GSTR1 />} />
         <Route path="settings"           element={<Settings />} />
+        <Route path="account"            element={<Account />} />
       </Route>
     </Routes>
   )

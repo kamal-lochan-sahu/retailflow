@@ -8,6 +8,8 @@ import { ownerOnly, managerUp, stockboyUp } from '../middleware/role.middleware.
 import { validate }      from '../middleware/validate.middleware.js'
 import { createProductSchema } from '../validators/product.validator.js'
 import multer from 'multer'
+import { validateUpdate } from '../middleware/validate.middleware.js'
+import { updateProductSchema } from '../validators/update.validator.js'
 
 const router     = Router()
 const memStorage = multer({ storage: multer.memoryStorage() })
@@ -20,7 +22,7 @@ router.get( '/expiring',      getExpiring)
 router.get( '/barcode/:code', getByBarcode)
 router.post('/bulk-import',   managerUp, memStorage.single('file'), bulkImport)
 router.get( '/:id',           getProduct)
-router.put( '/:id',           managerUp, updateProduct)
+router.put( '/:id',           managerUp, validateUpdate(updateProductSchema), updateProduct)
 router.delete('/:id',         ownerOnly,  deleteProduct)
 router.post('/:id/adjust',    stockboyUp, adjustStock)
 export default router

@@ -3,9 +3,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore.js'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { ShoppingCart, Eye, EyeOff } from 'lucide-react'
+import { fetchRegistrationStatus } from '../../services/auth.service.js'
 
 const schema = z.object({
   email:    z.string().email('Valid email required'),
@@ -16,6 +17,8 @@ export default function Login() {
   const { login } = useAuthStore()
   const navigate  = useNavigate()
   const [showPw, setShowPw] = useState(false)
+  const [canRegister, setCanRegister] = useState(false)   // hidden until the server says sign-up is open
+  useEffect(() => { fetchRegistrationStatus().then(r => setCanRegister(!!r.data?.data?.open)).catch(() => {}) }, [])
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(schema) })
 
   const onSubmit = async (data) => {
@@ -64,9 +67,11 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-slate-600 mt-6">
-          New shop? <Link to="/register" className="text-brand-600 font-medium hover:underline">Register here</Link>
-        </p>
+        {canRegister && (
+          <p className="text-center text-sm text-slate-600 mt-6">
+            New shop? <Link to="/register" className="text-brand-600 font-medium hover:underline">Register here</Link>
+          </p>
+        )}
       </div>
     </div>
   )

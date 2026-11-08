@@ -42,9 +42,27 @@ export const createPurchase = asyncHandler(async (req, res) => {
 })
 
 export const updatePurchase = asyncHandler(async (req, res) => {
+  const existing = await Purchase.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId, status: { $in: ['draft','sent'] } })
+  if (!existing) throw new ApiError(404, 'Purchase not found or already received')
+
+  // Totals are always derived on the server from the line items, never taken from the client.
+  const changes = { ...req.body }
+  const items = changes.items || existing.items
+  if (changes.items) {
+    const subtotal  = items.reduce((s, i) => s + i.quantity * i.purchasePrice, 0)
+    const gstAmount = items.reduce((s, i) => s + i.quantity * i.purchasePrice * (i.gstPercent || 0) / 100, 0)
+    changes.subtotal    = +subtotal.toFixed(2)
+    changes.gstAmount   = +gstAmount.toFixed(2)
+    changes.totalAmount = +(subtotal + gstAmount).toFixed(2)
+  }
+  const total = changes.totalAmount ?? existing.totalAmount
+  const paid  = changes.paidAmount  ?? existing.paidAmount
+  if (paid > total) throw new ApiError(400, 'paidAmount cannot exceed the purchase total')
+  changes.dueAmount = +(total - paid).toFixed(2)
+
   const purchase = await Purchase.findOneAndUpdate(
-    { _id: req.params.id, ownerId: req.scopeOwnerId, status: { $in: ['draft','sent'] } },
-    req.body,
+    { _id: existing._id, ownerId: req.scopeOwnerId, status: { $in: ['draft','sent'] } },
+    changes,
     { new: true }
   )
   if (!purchase) throw new ApiError(404, 'Purchase not found or already received')

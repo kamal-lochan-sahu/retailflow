@@ -2,12 +2,16 @@ import { useForm } from 'react-hook-form'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore.js'
 import toast from 'react-hot-toast'
+import { useState, useEffect } from 'react'
 import { ShoppingCart } from 'lucide-react'
+import { fetchRegistrationStatus } from '../../services/auth.service.js'
 
 export default function Register() {
   const { login } = useAuthStore()
   const navigate  = useNavigate()
   const { register, handleSubmit, formState: { isSubmitting } } = useForm()
+  const [open, setOpen] = useState(null)   // null = still checking
+  useEffect(() => { fetchRegistrationStatus().then(r => setOpen(!!r.data?.data?.open)).catch(() => setOpen(true)) }, [])
 
   const onSubmit = async (data) => {
     try {
@@ -30,6 +34,13 @@ export default function Register() {
           </div>
           <h1 className="text-xl font-bold text-slate-800">RetailFlow</h1>
         </div>
+        {open === false ? (
+          <div className="text-center py-4">
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Registration is closed</h2>
+            <p className="text-sm text-slate-600 mb-6">Ask the shop owner to create your account, then sign in.</p>
+            <Link to="/login" className="btn-primary px-5 py-2 inline-block">Go to sign in</Link>
+          </div>
+        ) : (<>
         <h2 className="text-2xl font-bold text-slate-800 mb-6">Register your shop</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {[
@@ -51,6 +62,7 @@ export default function Register() {
         <p className="text-center text-sm text-slate-600 mt-4">
           Already registered? <Link to="/login" className="text-brand-600 font-medium hover:underline">Sign in</Link>
         </p>
+        </>)}
       </div>
     </div>
   )

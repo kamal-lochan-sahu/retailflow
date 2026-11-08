@@ -8,6 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.utils.js'
 import { sendPasswordResetEmail } from '../utils/email.utils.js'
 import { delCache } from '../config/redis.js'
+import { registrationOpen } from '../utils/registration.utils.js'
 
 // ── Sessions ─────────────────────────────────────────────────
 // The frontend (Vercel) and API (Render) are on different domains, so a cookie can
@@ -31,7 +32,13 @@ const newRefreshToken = (userId) => generateRefreshToken({ _id: userId, jti: cry
 const addSession = (userId, refreshToken) =>
   User.updateOne({ _id: userId }, { $push: { refreshTokens: { $each: [sha(refreshToken)], $slice: -MAX_SESSIONS } } })
 
+export const registrationStatus = asyncHandler(async (_req, res) => {
+  res.json(new ApiResponse(200, { open: await registrationOpen() }))
+})
+
 export const register = asyncHandler(async (req, res) => {
+  if (!await registrationOpen())
+    throw new ApiError(403, 'Registration is closed. Ask the shop owner to create your account.')
   const { name, email, phone, password, shopName } = req.body
   const existing = await User.findOne({ email })
   if (existing) throw new ApiError(409, 'Email already registered')
@@ -160,7 +167,16 @@ export const changePassword = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('+password')
   if (!await user.isPasswordCorrect(req.body.currentPassword))
     throw new ApiError(400, 'Current password is incorrect')
+  if (req.body.currentPassword === req.body.newPassword)
+    throw new ApiError(400, 'New password must be different from the current one')
+
+  // Sign out every other device (a changed password usually means the old one may be known to
+  // someone else) but keep the session making this request, if the client told us which it is.
+  const current = typeof req.body.refreshToken === 'string' ? sha(req.body.refreshToken) : null
+  const stored  = await User.findById(user._id).select('refreshTokens')
+  user.refreshTokens = current && stored.refreshTokens.includes(current) ? [current] : []
   user.password = req.body.newPassword
   await user.save()
-  res.json(new ApiResponse(200, {}, 'Password changed successfully'))
+  await delCache(`user:${user._id}`)
+  res.json(new ApiResponse(200, { otherSessionsSignedOut: true }, 'Password changed successfully'))
 })

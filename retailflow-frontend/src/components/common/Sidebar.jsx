@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useUIStore } from '../../store/uiStore.js'
 import { useAuthStore } from '../../store/authStore.js'
+import { MANAGER_UP } from '../../utils/roles.js'
 import {
   X, LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react'
 
 const NAV = [
-  { to:'/',          icon: LayoutDashboard, label:'Dashboard'    },
+  { to:'/',          icon: LayoutDashboard, label:'Dashboard',    roles: MANAGER_UP },
   { to:'/pos',       icon: ShoppingCart,    label:'POS / Billing', highlight: true },
   { to:'/products',  icon: Package,         label:'Products'     },
   { to:'/customers', icon: Users,           label:'Customers'    },
@@ -19,7 +20,7 @@ const NAV = [
   { to:'/staff',     icon: UserCheck,       label:'Staff'        },
   { to:'/expenses',  icon: Wallet,          label:'Expenses'     },
   { to:'/orders',    icon: Globe,           label:'Online Orders'},
-  { to:'/analytics', icon: BarChart3,       label:'Analytics'    },
+  { to:'/analytics', icon: BarChart3,       label:'Analytics',    roles: MANAGER_UP },
   { to:'/gst-returns', icon: FileText,      label:'GST Returns', ownerOnly: true },
   { to:'/audit-trail', icon: History,       label:'Audit Trail', ownerOnly: true },
   { to:'/settings',  icon: Settings,        label:'Settings'     },
@@ -53,7 +54,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {NAV.filter(item => !item.ownerOnly || user?.role === 'owner').map(({ to, icon: Icon, label, highlight }) => {
+        {NAV.filter(item => (!item.ownerOnly || user?.role === 'owner') && (!item.roles || item.roles.includes(user?.role))).map(({ to, icon: Icon, label, highlight }) => {
           const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
           return (
             <Link key={to} to={to}
