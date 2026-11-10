@@ -22,3 +22,6 @@ export const validateUpdate = (schema) => (req, _, next) => {
   req.body = value
   next()
 }
+
+// Same behaviour for create endpoints whose controllers spread req.body into a model.
+export const validateStrict = validateUpdate

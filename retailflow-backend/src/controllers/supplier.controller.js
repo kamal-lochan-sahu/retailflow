@@ -41,6 +41,9 @@ export const update = asyncHandler(async (req, res) => {
 })
 
 export const remove = asyncHandler(async (req, res) => {
+  const current = await Supplier.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } }).select('outstandingBalance')
+  if (current && current.outstandingBalance > 0)
+    throw new ApiError(400, `Supplier still has ₹${current.outstandingBalance} outstanding - settle it before deleting`)
   const item = await Supplier.findOneAndUpdate(
     { _id: req.params.id, ownerId: req.scopeOwnerId, isDeleted: { $ne: true } },
     { isDeleted: true, deletedAt: new Date(), deletedBy: req.user._id },

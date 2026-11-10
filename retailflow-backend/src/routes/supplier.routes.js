@@ -7,9 +7,9 @@ import { updateSupplierSchema } from '../validators/update.validator.js'
 
 const router = Router()
 router.use(authenticate)
-router.get( '/',    getAll)
+router.get( '/',    managerUp, getAll)
 router.post('/',    managerUp, create)
-router.get( '/:id', getOne)
+router.get( '/:id', managerUp, getOne)
 router.put( '/:id', managerUp, validateUpdate(updateSupplierSchema), update)
 router.delete('/:id', ownerOnly, remove)
 export default router

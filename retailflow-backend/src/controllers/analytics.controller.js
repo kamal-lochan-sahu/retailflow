@@ -110,7 +110,7 @@ export const getProfitReport = asyncHandler(async (req, res) => {
       { $group: { _id:null, total:{$sum:'$totalAmount'}, gst:{$sum:'$gstAmount'} } }
     ]),
     Expense.aggregate([
-      { $match: { ownerId: req.scopeOwnerId, date:{$gte:start,$lte:end} } },
+      { $match: { ownerId: req.scopeOwnerId, isDeleted: { $ne: true }, date:{$gte:start,$lte:end} } },
       { $group: { _id:'$category', total:{$sum:'$amount'} } }
     ]),
     Purchase.aggregate([

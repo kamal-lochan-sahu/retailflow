@@ -130,9 +130,14 @@ export const getMe = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, { user: req.user, settings }))
 })
 
+const FORGOT_REPLY = 'If that email is registered, a reset link has been sent'
+
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const user = await User.findOne({ email: req.body.email })
-  if (!user) return res.json(new ApiResponse(200, {}, 'If email exists, reset link sent'))
+  // Every outcome (unknown email, deactivated account, mail server down) gets the SAME reply, so this
+  // endpoint can't be used to find out which emails have accounts.
+  const reply = () => res.json(new ApiResponse(200, {}, FORGOT_REPLY))
+  const user = await User.findOne({ email: String(req.body.email).toLowerCase().trim(), isActive: true })
+  if (!user) return reply()
 
   const token   = crypto.randomBytes(32).toString('hex')
   const expires = Date.now() + 3600000
@@ -142,8 +147,13 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   await user.save({ validateBeforeSave: false })
 
   const resetUrl = `${String(process.env.CLIENT_URL || '').split(',')[0].trim()}/reset-password/${token}`
-  await sendPasswordResetEmail(user.email, user.name, resetUrl, process.env.SHOP_NAME)
-  res.json(new ApiResponse(200, {}, 'Password reset email sent'))
+  try {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) throw new Error('SMTP_USER / SMTP_PASS not configured')
+    await sendPasswordResetEmail(user.email, user.name, resetUrl, process.env.SHOP_NAME)
+  } catch (err) {
+    console.error('Password reset email failed:', err.message)   // never log the reset URL / token
+  }
+  reply()
 })
 
 export const resetPassword = asyncHandler(async (req, res) => {

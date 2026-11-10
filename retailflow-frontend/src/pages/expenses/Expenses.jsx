@@ -4,9 +4,10 @@ import api from '../../services/api.js'
 import Modal from '../../components/common/Modal.jsx'
 import { PageLoader } from '../../components/common/Loader.jsx'
 import { formatINR, formatDate } from '../../utils/formatCurrency.js'
-import { Plus, Wallet } from 'lucide-react'
+import { Trash2, Plus, Wallet } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../../store/authStore.js'
 
 const CATS = ['rent','salary','electricity','maintenance','transport','marketing','other']
 
@@ -24,6 +25,16 @@ export default function Expenses() {
     onSuccess: ()=>{ toast.success('Expense added!'); qc.invalidateQueries(['expenses']); reset(); setShowAdd(false) },
     onError: e=>toast.error(e.response?.data?.message||'Failed')
   })
+
+  const isOwner = useAuthStore(s => s.user?.role) === 'owner'
+  const deleteMutation = useMutation({
+    mutationFn: (id)=>api.delete(`/expenses/${id}`),
+    onSuccess: ()=>{ toast.success('Expense deleted'); qc.invalidateQueries(['expenses']) },
+    onError: e=>toast.error(e.response?.data?.message||'Failed to delete')
+  })
+  const askDelete = (row, label) => {
+    if (window.confirm(`Delete ${label}? It moves to the Audit Trail and can be reviewed there.`)) deleteMutation.mutate(row._id)
+  }
 
   if (isLoading) return <PageLoader/>
   const expenses   = data?.data?.data?.expenses || []
@@ -43,7 +54,7 @@ export default function Expenses() {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50">
-            {['Date','Category','Amount','Description'].map(h=>(
+            {['Date','Category','Amount','Description',''].map(h=>(
               <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-left">{h}</th>
             ))}
           </tr></thead>
@@ -54,6 +65,13 @@ export default function Expenses() {
                 <td className="px-4 py-3"><span className="badge-blue capitalize">{e.category}</span></td>
                 <td className="px-4 py-3 font-semibold text-red-600">{formatINR(e.amount)}</td>
                 <td className="px-4 py-3 text-slate-500">{e.description||'-'}</td>
+                <td className="px-4 py-3 text-right">
+                  {isOwner && (
+                    <button onClick={()=>askDelete(e, `this ${e.category} expense of ${formatINR(e.amount)}`)} className="btn-ghost p-1.5 text-slate-400 hover:text-red-500" title="Delete">
+                      <Trash2 size={14}/>
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

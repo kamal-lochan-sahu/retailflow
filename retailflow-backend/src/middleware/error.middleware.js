@@ -12,7 +12,14 @@ export const errorHandler = (err, req, res, next) => {
     error = new ApiError(400, Object.values(err.errors).map(e => e.message).join(', '))
   if (err.name === 'JsonWebTokenError') error = new ApiError(401, 'Invalid token')
   if (err.name === 'TokenExpiredError') error = new ApiError(401, 'Token expired')
-  if (err.name === 'MulterError') error = new ApiError(400, err.message)
+  if (err.name === 'MulterError') {
+    error = err.code === 'LIMIT_FILE_SIZE'
+      ? new ApiError(413, 'File is too large (max 5MB)')
+      : new ApiError(400, err.message)
+  }
+  // Cloudinary SDK errors carry the upstream HTTP status; a 4xx there means the file itself was refused.
+  if (!err.statusCode && Number.isInteger(err.http_code) && err.http_code >= 400 && err.http_code < 500)
+    error = new ApiError(400, 'The file could not be processed as an image')
   if (err.type === 'entity.too.large') error = new ApiError(413, 'Request body too large')
   if (err.type === 'entity.parse.failed') error = new ApiError(400, 'Malformed JSON body')
 

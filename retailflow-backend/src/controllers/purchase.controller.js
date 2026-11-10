@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { generateBillNumber } from '../utils/billNumber.utils.js'
+import { computePurchaseTotals } from '../utils/purchaseTotals.utils.js'
 
 export const getPurchases = asyncHandler(async (req, res) => {
   const { page=1, limit=20, supplierId, status } = req.query
@@ -35,9 +36,28 @@ export const getPurchase = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, purchase))
 })
 
+// Products / supplier on a purchase must belong to THIS shop.
+const assertOwnRefs = async (ownerId, { items, supplierId }) => {
+  if (items) {
+    const ids = [...new Set(items.map(i => String(i.productId)))]
+    const found = await Product.countDocuments({ _id: { $in: ids }, ownerId })
+    if (found !== ids.length) throw new ApiError(400, 'One or more products were not found in this shop')
+  }
+  if (supplierId && !await Supplier.exists({ _id: supplierId, ownerId, isDeleted: { $ne: true } }))
+    throw new ApiError(400, 'Supplier not found')
+}
+
 export const createPurchase = asyncHandler(async (req, res) => {
+  // Status, totals and payment fields are never taken from the client: a new purchase is always a
+  // draft that owes its full (server-computed) total. Stock only moves in receivePurchase.
+  await assertOwnRefs(req.scopeOwnerId, req.body)
   const poNumber = await generateBillNumber(req.scopeOwnerId, 'PO')
-  const purchase = await Purchase.create({ ...req.body, ownerId: req.scopeOwnerId, poNumber })
+  const totals   = computePurchaseTotals(req.body.items)
+  const purchase = await Purchase.create({
+    ...req.body, ...totals,
+    status: 'draft', paidAmount: 0, dueAmount: totals.totalAmount,
+    ownerId: req.scopeOwnerId, poNumber,
+  })
   res.status(201).json(new ApiResponse(201, purchase, 'Purchase order created'))
 })
 
@@ -47,14 +67,8 @@ export const updatePurchase = asyncHandler(async (req, res) => {
 
   // Totals are always derived on the server from the line items, never taken from the client.
   const changes = { ...req.body }
-  const items = changes.items || existing.items
-  if (changes.items) {
-    const subtotal  = items.reduce((s, i) => s + i.quantity * i.purchasePrice, 0)
-    const gstAmount = items.reduce((s, i) => s + i.quantity * i.purchasePrice * (i.gstPercent || 0) / 100, 0)
-    changes.subtotal    = +subtotal.toFixed(2)
-    changes.gstAmount   = +gstAmount.toFixed(2)
-    changes.totalAmount = +(subtotal + gstAmount).toFixed(2)
-  }
+  await assertOwnRefs(req.scopeOwnerId, changes)
+  if (changes.items) Object.assign(changes, computePurchaseTotals(changes.items))
   const total = changes.totalAmount ?? existing.totalAmount
   const paid  = changes.paidAmount  ?? existing.paidAmount
   if (paid > total) throw new ApiError(400, 'paidAmount cannot exceed the purchase total')
@@ -70,14 +84,24 @@ export const updatePurchase = asyncHandler(async (req, res) => {
 })
 
 export const receivePurchase = asyncHandler(async (req, res) => {
-  const purchase = await Purchase.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId })
-  if (!purchase) throw new ApiError(404, 'Purchase not found')
-  if (purchase.status === 'received') throw new ApiError(400, 'Already received')
+  const found = await Purchase.findOne({ _id: req.params.id, ownerId: req.scopeOwnerId }).select('status')
+  if (!found) throw new ApiError(404, 'Purchase not found')
+  if (found.status === 'received')  throw new ApiError(400, 'Already received')
+  if (found.status === 'cancelled') throw new ApiError(400, 'A cancelled purchase cannot be received')
 
+  // Claim it atomically so two simultaneous requests can never add the stock twice.
+  const purchase = await Purchase.findOneAndUpdate(
+    { _id: found._id, ownerId: req.scopeOwnerId, status: { $in: ['draft', 'sent', 'partial'] } },
+    { $set: { status: 'received', receivedAt: new Date(), receivedBy: req.user._id } },
+    { new: true }
+  )
+  if (!purchase) throw new ApiError(400, 'Already received')
+
+  try {
   // Bulk update all products at once
   const bulkOps = purchase.items.map(item => ({
     updateOne: {
-      filter: { _id: item.productId },
+      filter: { _id: item.productId, ownerId: req.scopeOwnerId },
       update: {
         $inc: { stock: item.quantity },
         $set: {
@@ -105,14 +129,14 @@ export const receivePurchase = asyncHandler(async (req, res) => {
       mrp:           item.mrp,
     }))
   if (batchDocs.length) await ProductBatch.insertMany(batchDocs)
-
-  purchase.status     = 'received'
-  purchase.receivedAt = new Date()
-  purchase.receivedBy = req.user._id
-  await purchase.save()
+  } catch (err) {
+    // Stock was not (fully) added: release the claim so the purchase can be received again.
+    await Purchase.updateOne({ _id: purchase._id }, { $set: { status: found.status }, $unset: { receivedAt: 1, receivedBy: 1 } })
+    throw err
+  }
 
   if (purchase.supplierId) {
-    await Supplier.findByIdAndUpdate(purchase.supplierId, {
+    await Supplier.findOneAndUpdate({ _id: purchase.supplierId, ownerId: req.scopeOwnerId }, {
       $inc: {
         totalPurchased:     purchase.totalAmount,
         outstandingBalance: purchase.dueAmount,

@@ -4,9 +4,10 @@ import api from '../../services/api.js'
 import Modal from '../../components/common/Modal.jsx'
 import { PageLoader } from '../../components/common/Loader.jsx'
 import { formatINR } from '../../utils/formatCurrency.js'
-import { Plus, Truck } from 'lucide-react'
+import { Trash2, Plus, Truck } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../../store/authStore.js'
 
 export default function Suppliers() {
   const [showAdd, setShowAdd] = useState(false)
@@ -23,6 +24,16 @@ export default function Suppliers() {
     onError: e=>toast.error(e.response?.data?.message||'Failed')
   })
 
+  const isOwner = useAuthStore(s => s.user?.role) === 'owner'
+  const deleteMutation = useMutation({
+    mutationFn: (id)=>api.delete(`/suppliers/${id}`),
+    onSuccess: ()=>{ toast.success('Supplier deleted'); qc.invalidateQueries(['suppliers']) },
+    onError: e=>toast.error(e.response?.data?.message||'Failed to delete')
+  })
+  const askDelete = (row, label) => {
+    if (window.confirm(`Delete ${label}? It moves to the Audit Trail and can be reviewed there.`)) deleteMutation.mutate(row._id)
+  }
+
   if (isLoading) return <PageLoader/>
   const suppliers  = data?.data?.data?.suppliers || []
   const pagination = data?.data?.data?.pagination || {}
@@ -37,7 +48,7 @@ export default function Suppliers() {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50">
-            {['Name','Phone','Email','GSTIN','Outstanding','Rating'].map(h=>(
+            {['Name','Phone','Email','GSTIN','Outstanding','Rating',''].map(h=>(
               <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-left">{h}</th>
             ))}
           </tr></thead>
@@ -50,6 +61,13 @@ export default function Suppliers() {
                 <td className="px-4 py-3 text-slate-500 font-mono text-xs">{s.gstin||'-'}</td>
                 <td className="px-4 py-3 text-red-600 font-semibold">{formatINR(s.outstandingBalance)}</td>
                 <td className="px-4 py-3">{'⭐'.repeat(s.rating||3)}</td>
+                <td className="px-4 py-3 text-right">
+                  {isOwner && (
+                    <button onClick={()=>askDelete(s, `supplier "${s.name}"`)} className="btn-ghost p-1.5 text-slate-400 hover:text-red-500" title="Delete">
+                      <Trash2 size={14}/>
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

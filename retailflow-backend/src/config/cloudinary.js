@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary'
 import { CloudinaryStorage } from 'multer-storage-cloudinary'
 import multer from 'multer'
+import { ApiError } from '../utils/ApiError.js'
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -17,5 +18,11 @@ const storage = new CloudinaryStorage({
   }
 })
 
-export const upload   = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } })
+// Reject anything that isn't a JPG/PNG/WebP BEFORE it is streamed to Cloudinary
+// (otherwise Cloudinary refuses it mid-upload and the client just sees a 500).
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp']
+const imageOnly = (_req, file, cb) =>
+  ALLOWED_MIME.includes(file.mimetype) ? cb(null, true) : cb(new ApiError(400, 'Only JPG, PNG or WebP images are allowed'))
+
+export const upload   = multer({ storage, fileFilter: imageOnly, limits: { fileSize: 5 * 1024 * 1024 } })
 export default cloudinary

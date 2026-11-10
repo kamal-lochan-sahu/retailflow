@@ -61,6 +61,9 @@ export default function Login() {
               </button>
             </div>
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            <div className="text-right mt-1.5">
+              <Link to="/forgot-password" className="text-xs text-brand-600 hover:underline">Forgot password?</Link>
+            </div>
           </div>
           <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-2.5">
             {isSubmitting ? 'Signing in...' : 'Sign in'}

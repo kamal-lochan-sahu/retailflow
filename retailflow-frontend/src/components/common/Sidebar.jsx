@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useUIStore } from '../../store/uiStore.js'
 import { useAuthStore } from '../../store/authStore.js'
-import { MANAGER_UP } from '../../utils/roles.js'
+import { MANAGER_UP, OWNER_ONLY, CASHIER_UP, STOCK_UP } from '../../utils/roles.js'
 import {
   X, LayoutDashboard, ShoppingCart, Package, Users, Receipt,
   ShoppingBag, Truck, UserCheck, Wallet, BarChart3,
@@ -10,20 +10,20 @@ import {
 
 const NAV = [
   { to:'/',          icon: LayoutDashboard, label:'Dashboard',    roles: MANAGER_UP },
-  { to:'/pos',       icon: ShoppingCart,    label:'POS / Billing', highlight: true },
-  { to:'/products',  icon: Package,         label:'Products'     },
-  { to:'/customers', icon: Users,           label:'Customers'    },
-  { to:'/udhaar',    icon: CreditCard,      label:'Udhaar'       },
-  { to:'/sales',     icon: Receipt,         label:'Sales'        },
-  { to:'/purchases', icon: ShoppingBag,     label:'Purchases'    },
-  { to:'/suppliers', icon: Truck,           label:'Suppliers'    },
-  { to:'/staff',     icon: UserCheck,       label:'Staff'        },
-  { to:'/expenses',  icon: Wallet,          label:'Expenses'     },
+  { to:'/pos',       icon: ShoppingCart,    label:'POS / Billing', highlight: true, roles: CASHIER_UP },
+  { to:'/products',  icon: Package,         label:'Products',     roles: STOCK_UP },
+  { to:'/customers', icon: Users,           label:'Customers',    roles: CASHIER_UP },
+  { to:'/udhaar',    icon: CreditCard,      label:'Udhaar',       roles: CASHIER_UP },
+  { to:'/sales',     icon: Receipt,         label:'Sales',        roles: CASHIER_UP },
+  { to:'/purchases', icon: ShoppingBag,     label:'Purchases',    roles: MANAGER_UP },
+  { to:'/suppliers', icon: Truck,           label:'Suppliers',    roles: MANAGER_UP },
+  { to:'/staff',     icon: UserCheck,       label:'Staff',        roles: MANAGER_UP },
+  { to:'/expenses',  icon: Wallet,          label:'Expenses',     roles: MANAGER_UP },
   { to:'/orders',    icon: Globe,           label:'Online Orders'},
   { to:'/analytics', icon: BarChart3,       label:'Analytics',    roles: MANAGER_UP },
   { to:'/gst-returns', icon: FileText,      label:'GST Returns', ownerOnly: true },
   { to:'/audit-trail', icon: History,       label:'Audit Trail', ownerOnly: true },
-  { to:'/settings',  icon: Settings,        label:'Settings'     },
+  { to:'/settings',  icon: Settings,        label:'Settings',     roles: OWNER_ONLY },
 ]
 
 export default function Sidebar() {

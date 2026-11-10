@@ -6,5 +6,5 @@ import { managerUp } from '../middleware/role.middleware.js'
 const router = Router()
 router.use(authenticate)
 router.post('/', managerUp, createReturn)
-router.get( '/', getReturns)
+router.get( '/', managerUp, getReturns)
 export default router

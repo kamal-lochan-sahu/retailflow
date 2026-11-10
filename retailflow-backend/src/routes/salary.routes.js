@@ -6,5 +6,5 @@ import { managerUp } from '../middleware/role.middleware.js'
 const router = Router()
 router.use(authenticate)
 router.post('/',                     managerUp, paySalary)
-router.get('/staff/:staffId/history',getSalaryHistory)
+router.get('/staff/:staffId/history', managerUp, getSalaryHistory)
 export default router

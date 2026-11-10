@@ -30,7 +30,9 @@ import OnlineOrders  from './pages/online-orders/OnlineOrders.jsx'
 import AuditTrail    from './pages/audit/AuditTrail.jsx'
 import GSTR1         from './pages/gst/GSTR1.jsx'
 import Account       from './pages/Account.jsx'
-import { landingFor, MANAGER_UP } from './utils/roles.js'
+import ForgotPassword from './pages/auth/ForgotPassword.jsx'
+import ResetPassword  from './pages/auth/ResetPassword.jsx'
+import { landingFor, MANAGER_UP, OWNER_ONLY, CASHIER_UP, STOCK_UP } from './utils/roles.js'
 
 const PrivateRoute = ({ children }) => {
   const token = useAuthStore(s => s.accessToken)
@@ -49,29 +51,31 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password"        element={<ForgotPassword />} />
+      <Route path="/reset-password/:token"  element={<ResetPassword />} />
       <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
         <Route index              element={<RoleRoute roles={MANAGER_UP}><Dashboard /></RoleRoute>} />
-        <Route path="pos"         element={<POS />} />
-        <Route path="products"    element={<Products />} />
-        <Route path="products/add"       element={<AddProduct />} />
-        <Route path="products/:id/edit"  element={<EditProduct />} />
-        <Route path="products/low-stock" element={<LowStock />} />
-        <Route path="products/expiring"  element={<ExpiryAlerts />} />
-        <Route path="customers"          element={<Customers />} />
-        <Route path="customers/:id"      element={<CustomerDetail />} />
-        <Route path="udhaar"             element={<UdhaarMgmt />} />
-        <Route path="sales"              element={<Sales />} />
-        <Route path="sales/:id"          element={<SaleDetail />} />
-        <Route path="purchases"          element={<Purchases />} />
-        <Route path="purchases/add"      element={<AddPurchase />} />
-        <Route path="suppliers"          element={<Suppliers />} />
-        <Route path="staff"              element={<Staff />} />
-        <Route path="expenses"           element={<Expenses />} />
+        <Route path="pos"         element={<RoleRoute roles={CASHIER_UP}><POS /></RoleRoute>} />
+        <Route path="products"    element={<RoleRoute roles={STOCK_UP}><Products /></RoleRoute>} />
+        <Route path="products/add"       element={<RoleRoute roles={MANAGER_UP}><AddProduct /></RoleRoute>} />
+        <Route path="products/:id/edit"  element={<RoleRoute roles={MANAGER_UP}><EditProduct /></RoleRoute>} />
+        <Route path="products/low-stock" element={<RoleRoute roles={STOCK_UP}><LowStock /></RoleRoute>} />
+        <Route path="products/expiring"  element={<RoleRoute roles={STOCK_UP}><ExpiryAlerts /></RoleRoute>} />
+        <Route path="customers"          element={<RoleRoute roles={CASHIER_UP}><Customers /></RoleRoute>} />
+        <Route path="customers/:id"      element={<RoleRoute roles={CASHIER_UP}><CustomerDetail /></RoleRoute>} />
+        <Route path="udhaar"             element={<RoleRoute roles={CASHIER_UP}><UdhaarMgmt /></RoleRoute>} />
+        <Route path="sales"              element={<RoleRoute roles={CASHIER_UP}><Sales /></RoleRoute>} />
+        <Route path="sales/:id"          element={<RoleRoute roles={CASHIER_UP}><SaleDetail /></RoleRoute>} />
+        <Route path="purchases"          element={<RoleRoute roles={MANAGER_UP}><Purchases /></RoleRoute>} />
+        <Route path="purchases/add"      element={<RoleRoute roles={MANAGER_UP}><AddPurchase /></RoleRoute>} />
+        <Route path="suppliers"          element={<RoleRoute roles={MANAGER_UP}><Suppliers /></RoleRoute>} />
+        <Route path="staff"              element={<RoleRoute roles={MANAGER_UP}><Staff /></RoleRoute>} />
+        <Route path="expenses"           element={<RoleRoute roles={MANAGER_UP}><Expenses /></RoleRoute>} />
         <Route path="analytics"          element={<RoleRoute roles={MANAGER_UP}><Analytics /></RoleRoute>} />
         <Route path="orders"             element={<OnlineOrders />} />
-        <Route path="audit-trail"        element={<AuditTrail />} />
-        <Route path="gst-returns"        element={<GSTR1 />} />
-        <Route path="settings"           element={<Settings />} />
+        <Route path="audit-trail"        element={<RoleRoute roles={OWNER_ONLY}><AuditTrail /></RoleRoute>} />
+        <Route path="gst-returns"        element={<RoleRoute roles={OWNER_ONLY}><GSTR1 /></RoleRoute>} />
+        <Route path="settings"           element={<RoleRoute roles={OWNER_ONLY}><Settings /></RoleRoute>} />
         <Route path="account"            element={<Account />} />
       </Route>
     </Routes>
