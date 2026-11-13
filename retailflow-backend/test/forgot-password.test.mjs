@@ -9,6 +9,7 @@ process.env.SHOP_NAME = 'Test Shop'
 
 const { default: User } = await import('../src/models/User.js')
 const { transporter } = await import('../src/config/email.js')
+delete process.env.EMAIL_PROVIDER
 const { forgotPassword } = await import('../src/controllers/auth.controller.js')
 
 const run = async ({ found, smtp = true, sendFails = false }) => {

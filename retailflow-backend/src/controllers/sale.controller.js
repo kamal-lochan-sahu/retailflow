@@ -3,6 +3,8 @@ import Product from '../models/Product.js'
 import Customer from '../models/Customer.js'
 import UdhaarLedger from '../models/UdhaarLedger.js'
 import Settings from '../models/Settings.js'
+import ProductVariant from '../models/ProductVariant.js'
+import { posRuleViolations, discountOverflow } from '../utils/posRules.utils.js'
 import { ApiError } from '../utils/ApiError.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -18,6 +20,25 @@ const findSaleByClientId = (ownerId, clientId) =>
   Sale.findOne({ ownerId, clientId })
     .populate('customerId', 'name phone')
     .populate('staffId', 'name')
+
+// Reference price of each cart line (variant price when it has one, else the product's) -> rule check input.
+const buildRuleLines = async (ownerId, items, productMap) => {
+  const vIds = items.map(i => i.variantId).filter(Boolean)
+  const variants = vIds.length ? await ProductVariant.find({ _id: { $in: vIds }, ownerId }).select('sellingPrice').lean() : []
+  const vMap = new Map(variants.map(v => [v._id.toString(), v]))
+  return items.map(i => {
+    const p = productMap.get(i.productId.toString())
+    const ref = (i.variantId && vMap.get(String(i.variantId))?.sellingPrice) || p.sellingPrice
+    return {
+      name: p.name, refPrice: ref, sellingPrice: i.sellingPrice || ref, quantity: i.quantity,
+      discount: i.discount || 0, discountType: i.discountType || 'flat',
+    }
+  })
+}
+const billSubtotal = (lines) => lines.reduce((s, l) => {
+  const gross = l.sellingPrice * l.quantity
+  return s + gross - (l.discountType === 'percent' ? gross * l.discount / 100 : l.discount)
+}, 0)
 
 // ── Create Sale ────────────────────────────────────────────────
 export const createSale = asyncHandler(async (req, res) => {
@@ -57,6 +78,16 @@ export const createSale = asyncHandler(async (req, res) => {
   }
 
   const settings = await Settings.findOne({ ownerId }).lean()
+
+  // Price / discount rules (see Settings.pos). Online sale, so a breach is refused outright.
+  {
+    const lines = await buildRuleLines(ownerId, items, productMap)
+    const bill  = { discountAmount, discountType, subtotal: billSubtotal(lines) }
+    const overflow = discountOverflow({ lines, bill })
+    if (overflow) throw new ApiError(400, overflow)
+    const problems = posRuleViolations({ role: req.user.role, settings, lines, bill })
+    if (problems.length) throw new ApiError(403, problems[0])
+  }
 
   // Calculate totals
   let subtotal = 0, gstAmount = 0
@@ -243,6 +274,15 @@ export const syncOfflineSale = asyncHandler(async (req, res) => {
 
   const settings = await Settings.findOne({ ownerId }).lean()
 
+  // Already sold, so it can't be refused: record it, and flag it for the owner when it broke a rule.
+  const ruleLines = await buildRuleLines(ownerId, items, productMap)
+  const ruleBill  = { discountAmount, discountType, subtotal: billSubtotal(ruleLines) }
+  const overflowMsg  = discountOverflow({ lines: ruleLines, bill: ruleBill })
+  const ruleProblems = [
+    ...(overflowMsg ? [overflowMsg] : []),
+    ...posRuleViolations({ role: req.user.role, settings, lines: ruleLines, bill: ruleBill }),
+  ]
+
   let subtotal = 0, gstAmount = 0
   const enrichedItems = items.map(item => {
     const product      = productMap.get(item.productId.toString())
@@ -311,8 +351,11 @@ export const syncOfflineSale = asyncHandler(async (req, res) => {
     isOffline: true,
     syncedAt: new Date(),
     createdAt: new Date(offlineCreatedAt),
-    needsReview: oversold.length > 0,
-    reviewReason: oversold.length ? `Sold offline with insufficient stock: ${oversold.join('; ')}` : undefined,
+    needsReview: oversold.length > 0 || ruleProblems.length > 0,
+    reviewReason: [
+      oversold.length ? `Sold offline with insufficient stock: ${oversold.join('; ')}` : '',
+      ruleProblems.length ? `Price/discount rules: ${ruleProblems.join('; ')}` : '',
+    ].filter(Boolean).join(' | ') || undefined,
   })
 
   // Unconditional deduction (no $gte guard): the goods are gone, the books must say so.

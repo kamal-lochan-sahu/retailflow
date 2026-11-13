@@ -30,6 +30,8 @@ export default function Settings() {
       billPrefix:       s.billing?.prefix    || 'INV',
       footerText:       s.billing?.footerText || '',
       lowStockThreshold: s.stock?.defaultLowStockThreshold || 5,
+      cashierCanChangePrice:     !!s.pos?.cashierCanChangePrice,
+      cashierMaxDiscountPercent: s.pos?.cashierMaxDiscountPercent ?? 10,
     })
   }, [data])
 
@@ -49,6 +51,10 @@ export default function Settings() {
       },
       stock: {
         defaultLowStockThreshold: parseInt(d.lowStockThreshold) || 5,
+      },
+      pos: {
+        cashierCanChangePrice:     !!d.cashierCanChangePrice,
+        cashierMaxDiscountPercent: Math.min(100, Math.max(0, Number(d.cashierMaxDiscountPercent) || 0)),
       }
     }),
     onSuccess: async (res) => {
@@ -111,6 +117,18 @@ export default function Settings() {
           </div>
           <Field label="Thank You Message" name="thankYouMessage" placeholder="Thank you for shopping!"/>
           <Field label="Bill Footer Text"  name="footerText"      placeholder="Return policy, contact etc."/>
+        </Section>
+
+        <Section title="🛒 Counter Rules (cashiers)">
+          <p className="text-xs text-slate-500">Owner and manager are never limited by these. Applies to staff with the cashier role.</p>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" {...register('cashierCanChangePrice')} className="rounded border-slate-300"/>
+            Cashier can change an item's selling price at billing
+          </label>
+          <div className="max-w-xs">
+            <Field label="Max discount a cashier can give (%)" name="cashierMaxDiscountPercent" type="number" placeholder="10"/>
+            <p className="text-xs text-slate-400 mt-1">0 = no discount allowed. Applies per item and to the whole bill.</p>
+          </div>
         </Section>
 
         <button type="submit" disabled={isSubmitting || saveMutation.isPending} className="btn-primary">

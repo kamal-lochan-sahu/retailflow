@@ -194,6 +194,10 @@ export const updateSettingsSchema = partial({
       silver: Joi.number().min(0), gold: Joi.number().min(0), platinum: Joi.number().min(0),
     }).options(opts),
   }).options(opts),
+  pos: Joi.object({
+    cashierCanChangePrice:     bool,
+    cashierMaxDiscountPercent: Joi.number().min(0).max(100),
+  }).options(opts),
   notifications: Joi.object({
     dailyReport: bool, lowStock: bool, expiryAlert: bool, udharReminder: bool,
     reportEmail: email, alertPhone: phone,

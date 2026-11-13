@@ -4,6 +4,8 @@ import { searchProducts, searchByBarcode } from '../../services/product.service.
 import { createSale } from '../../services/pos.service.js'
 import { formatINR } from '../../utils/formatCurrency.js'
 import { useQuery } from '@tanstack/react-query'
+import api from '../../services/api.js'
+import { useAuthStore } from '../../store/authStore.js'
 import Modal from '../../components/common/Modal.jsx'
 import { searchCustomers } from '../../services/customer.service.js'
 import toast from 'react-hot-toast'
@@ -28,6 +30,13 @@ export default function POS() {
           discountType, setDiscount, clearCart } = usePOSStore()
 
   const searchRef = useRef(null)
+
+  // Counter rules set by the owner (Settings → Counter Rules). The server enforces them too;
+  // this just stops a cashier typing something that would be refused at checkout.
+  const role = useAuthStore(s => s.user?.role)
+  const { data: settingsRes } = useQuery({ queryKey: ['settings'], queryFn: () => api.get('/settings'), staleTime: 60000 })
+  const limited = role !== 'owner' && role !== 'manager'
+  const maxDiscPct = limited ? (settingsRes?.data?.data?.pos?.cashierMaxDiscountPercent ?? 10) : 100
 
   useEffect(() => { searchRef.current?.focus() }, [])
 
@@ -181,6 +190,16 @@ export default function POS() {
   }, [cart.length, showPayment, holdBill, handleCheckout])
 
   const subtotal = getSubtotal()
+
+  const changeDiscount = (value, type) => {
+    const pct = type === 'percent' ? value : (subtotal > 0 ? (value / subtotal) * 100 : (value > 0 ? Infinity : 0))
+    if (pct > maxDiscPct) {
+      toast.error(`You can give at most ${maxDiscPct}% discount. Ask a manager for more.`)
+      const capped = type === 'percent' ? maxDiscPct : Math.floor(subtotal * maxDiscPct) / 100
+      return setDiscount(capped, type)
+    }
+    setDiscount(value, type)
+  }
   const gst      = getGSTAmount()
   const total    = getTotal()
   const change   = cashTendered ? parseFloat(cashTendered) - total : 0
@@ -326,10 +345,10 @@ export default function POS() {
               <input
                 type="number" placeholder="Discount" min="0"
                 value={discount || ''}
-                onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
+                onChange={e => changeDiscount(parseFloat(e.target.value) || 0, discountType)}
                 className="input text-sm flex-1 py-1.5"
               />
-              <select value={discountType} onChange={e => setDiscount(discount, e.target.value)}
+              <select value={discountType} onChange={e => changeDiscount(discount, e.target.value)}
                 className="input text-sm w-20 py-1.5">
                 <option value="flat">₹</option>
                 <option value="percent">%</option>

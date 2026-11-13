@@ -8,6 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.utils.js'
 import { sendPasswordResetEmail } from '../utils/email.utils.js'
 import { delCache } from '../config/redis.js'
+import { isEmailConfigured } from '../config/email.js'
 import { registrationOpen } from '../utils/registration.utils.js'
 
 // ── Sessions ─────────────────────────────────────────────────
@@ -148,7 +149,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   const resetUrl = `${String(process.env.CLIENT_URL || '').split(',')[0].trim()}/reset-password/${token}`
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) throw new Error('SMTP_USER / SMTP_PASS not configured')
+    if (!isEmailConfigured()) throw new Error('email not configured (set EMAIL_PROVIDER)')
     await sendPasswordResetEmail(user.email, user.name, resetUrl, process.env.SHOP_NAME)
   } catch (err) {
     console.error('Password reset email failed:', err.message)   // never log the reset URL / token

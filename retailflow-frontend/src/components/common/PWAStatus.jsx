@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { RefreshCw, WifiOff } from 'lucide-react'
 
@@ -5,6 +6,11 @@ import { RefreshCw, WifiOff } from 'lucide-react'
 // interrupt the cashier: a new version is built and waiting (don't auto-reload
 // mid-sale — let them choose when), and the very first time the app has
 // actually cached enough to work with no connection at all.
+// "Ready to work offline" is only good news, so it shows once per browser and hides itself.
+const SEEN_KEY = 'rf-offline-ready-seen'
+const seenBefore = () => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return false } }
+const markSeen   = () => { try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode etc. */ } }
+
 export default function PWAStatus() {
   const {
     offlineReady: [offlineReady, setOfflineReady],
@@ -18,6 +24,14 @@ export default function PWAStatus() {
       setInterval(() => { reg.update().catch(() => {}) }, 60 * 60 * 1000)
     },
   })
+
+  useEffect(() => {
+    if (!offlineReady) return
+    if (seenBefore()) { setOfflineReady(false); return }
+    markSeen()
+    const t = setTimeout(() => setOfflineReady(false), 6000)
+    return () => clearTimeout(t)
+  }, [offlineReady, setOfflineReady])
 
   if (needRefresh) {
     return (

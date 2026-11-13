@@ -42,6 +42,11 @@ const SettingsSchema = new mongoose.Schema({
       platinum: { type: Number, default: 20000 },
     }
   },
+  // Counter rules, set per client. Owner/manager are never limited by these.
+  pos: {
+    cashierCanChangePrice:     { type: Boolean, default: false },
+    cashierMaxDiscountPercent: { type: Number, default: 10, min: 0, max: 100 },
+  },
   notifications: {
     dailyReport:   { type: Boolean, default: true },
     lowStock:      { type: Boolean, default: true },
